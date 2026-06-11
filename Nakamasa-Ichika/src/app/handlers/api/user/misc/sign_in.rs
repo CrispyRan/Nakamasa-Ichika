@@ -35,6 +35,17 @@ struct DiaryAwardConfig {
 /// 获取签到奖励配置 - 使用高性能缓存
 #[inline]
 async fn get_diary_award_config(app_state: &Arc<AppState>, appid: u64) -> DiaryAwardConfig {
+    // 数据库连接守卫
+    let db = match app_state.get_db() {
+        Some(pool) => pool,
+        None => {
+            return DiaryAwardConfig {
+                diary_award: "fen".to_string(),
+                diary_award_val: 0,
+            };
+        }
+    };
+
     // 先从缓存获取
     if let Some(cached) = app_state.app_config_cache.get(&appid) {
         return DiaryAwardConfig {
@@ -48,7 +59,7 @@ async fn get_diary_award_config(app_state: &Arc<AppState>, appid: u64) -> DiaryA
         "SELECT diary_award, diary_award_val FROM u_app WHERE id = ?",
     )
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     match result {
@@ -76,6 +87,13 @@ pub async fn sign_in(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（零拷贝）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -140,7 +158,7 @@ pub async fn sign_in(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(uid)
     .bind(start_of_day)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     if let Ok(Some(_)) = s_res {
@@ -162,7 +180,7 @@ pub async fn sign_in(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(current_time)
     .bind(ip)
     .bind(appid)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match add_res {
@@ -193,7 +211,7 @@ pub async fn sign_in(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                             .bind(new_vip)
                             .bind(uid)
                             .bind(appid)
-                            .execute(app_state.get_db().expect("db"))
+                            .execute(db)
                             .await;
                     }
                     "fen" => {
@@ -203,7 +221,7 @@ pub async fn sign_in(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                         .bind(award_config.diary_award_val)
                         .bind(uid)
                         .bind(appid)
-                        .execute(app_state.get_db().expect("db"))
+                        .execute(db)
                         .await
                         {
                             tracing::error!("签到积分发放失败: uid={}, error={}", uid, e);

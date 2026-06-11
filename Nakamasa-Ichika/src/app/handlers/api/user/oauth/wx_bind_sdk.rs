@@ -31,6 +31,13 @@ pub async fn wx_bind_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respons
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取 app_key
     let app_key = depot
@@ -91,7 +98,7 @@ pub async fn wx_bind_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respons
     .bind(&bind_req.openid)
     .bind(appid)
     .bind(uid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     match existing_user {
@@ -119,7 +126,7 @@ pub async fn wx_bind_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respons
         .bind(&wx_bind_str)
         .bind(uid)
         .bind(appid)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match update_result {

@@ -44,6 +44,13 @@ pub async fn order_query(req: &mut Request, depot: &mut Depot, res: &mut Respons
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -94,7 +101,7 @@ pub async fn order_query(req: &mut Request, depot: &mut Depot, res: &mut Respons
     .bind(uid)
     .bind(&query_req.order)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     match result {

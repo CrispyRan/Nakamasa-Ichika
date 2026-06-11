@@ -87,6 +87,13 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（零拷贝）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -159,7 +166,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
     let redis_util = &app_state.redis_util;
 
     // 获取登录配置
-    let logon_config = match get_logon_config(app_state.get_db().expect("db"), appid).await {
+    let logon_config = match get_logon_config(db, appid).await {
         Some(config) => config,
         None => {
             render_error(res, "应用配置不存在", 201, app_key);
@@ -232,7 +239,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
     )
     .bind(&qq_openid)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     match existing_user {
@@ -268,7 +275,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
             let sn_list_result =
                 sqlx::query_as::<_, (Option<String>,)>("SELECT sn_list FROM u_user WHERE id = ?")
                     .bind(id)
-                    .fetch_one(app_state.get_db().expect("db"))
+                    .fetch_one(db)
                     .await;
 
             let sn_list_str = sn_list_result.ok().and_then(|r| r.0);
@@ -292,7 +299,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
                 let update_result = sqlx::query("UPDATE u_user SET sn_list = ? WHERE id = ?")
                     .bind(&new_sn_list_str)
                     .bind(id)
-                    .execute(app_state.get_db().expect("db"))
+                    .execute(db)
                     .await;
 
                 if update_result.is_err() {
@@ -363,7 +370,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
                                 sqlx::query("UPDATE u_user SET sn_list = ? WHERE id = ?")
                                     .bind(&new_list_str)
                                     .bind(id)
-                                    .execute(app_state.get_db().expect("db"))
+                                    .execute(db)
                                     .await;
 
                             if update_result.is_err() {
@@ -388,7 +395,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
                             sqlx::query("UPDATE u_user SET sn_list = ? WHERE id = ?")
                                 .bind(&new_sn_list_str)
                                 .bind(id)
-                                .execute(app_state.get_db().expect("db"))
+                                .execute(db)
                                 .await;
 
                         if update_result.is_err() {
@@ -421,7 +428,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
             let inv_code =
                 sqlx::query_as::<_, (Option<String>,)>("SELECT inv_code FROM u_user WHERE id = ?")
                     .bind(id)
-                    .fetch_one(app_state.get_db().expect("db"))
+                    .fetch_one(db)
                     .await
                     .ok()
                     .and_then(|r| r.0);
@@ -490,7 +497,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
             .bind(current_time)
             .bind(ip)
             .bind(Some(appid))
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
             let response = LoginResponse {
@@ -508,7 +515,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
                 "SELECT reg_award, reg_award_val, inviter_award, invitee_award, inviter_award_val, invitee_award_val FROM u_app WHERE id = ?"
             )
             .bind(appid)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
             let app_cfg = match app_result {
@@ -559,7 +566,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
                 )
                 .bind(inv_id)
                 .bind(appid)
-                .fetch_optional(app_state.get_db().expect("db"))
+                .fetch_optional(db)
                 .await;
 
                 if let Ok(Some((inv_uid, inv_vip, inv_fen))) = inv_res {
@@ -575,13 +582,13 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
                             let _ = sqlx::query("UPDATE u_user SET vip = ? WHERE id = ?")
                                 .bind(new_vip)
                                 .bind(inv_uid)
-                                .execute(app_state.get_db().expect("db"))
+                                .execute(db)
                                 .await;
                         } else {
                             let _ = sqlx::query("UPDATE u_user SET fen = ? WHERE id = ?")
                                 .bind(inv_fen + inviter_award_val)
                                 .bind(inv_uid)
-                                .execute(app_state.get_db().expect("db"))
+                                .execute(db)
                                 .await;
                         }
                     }
@@ -613,7 +620,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
             .bind(appid)
             .bind(inviter_id_val)
             .bind(serde_json::json!([{"udid": &qq_req.udid, "time": current_time}]).to_string())
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
             match insert_result {
@@ -698,7 +705,7 @@ pub async fn qq_login_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respon
                     .bind(current_time)
                     .bind(ip)
                     .bind(Some(appid))
-                    .execute(app_state.get_db().expect("db"))
+                    .execute(db)
                     .await;
 
                     let response = LoginResponse {

@@ -43,6 +43,13 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let list_req = match req.parse_json::<GetListRequest>().await {
         Ok(data) => data,
@@ -113,7 +120,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         sql_query = sql_query.bind(param);
     }
 
-    let result = sql_query.fetch_all(app_state.get_db().expect("db")).await;
+    let result = sql_query.fetch_all(db).await;
 
     match result {
         Ok(rows) => {
@@ -158,6 +165,13 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let add_req = match req.parse_json::<AddAgentRequest>().await {
         Ok(data) => data,
@@ -193,7 +207,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sqlx::query_as::<_, (i64,)>("SELECT id FROM u_agent_group WHERE id = ? AND appid = ?")
             .bind(add_req.gid)
             .bind(appid)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
     match check_result {
@@ -215,7 +229,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(0) // 简化处理，实际需要根据user查找uid
             .bind(add_req.note)
             .bind(appid)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
     match insert_result {
@@ -250,6 +264,13 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let edit_req = match req.parse_json::<EditAgentRequest>().await {
         Ok(data) => data,
@@ -285,7 +306,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         .bind(edit_req.note)
         .bind(edit_req.money)
         .bind(edit_req.id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -317,6 +338,13 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let del_req = match req.parse_json::<DelRequest>().await {
         Ok(data) => data,
@@ -328,7 +356,7 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     let result = sqlx::query("DELETE FROM u_agent WHERE id = ?")
         .bind(del_req.id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {

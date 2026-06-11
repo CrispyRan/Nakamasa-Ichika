@@ -180,6 +180,13 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（避免 clone）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -234,7 +241,6 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     }
 
     // 获取登录配置
-    let db = app_state.get_db().expect("db");
     let logon_config = match get_logon_config(db, appid).await {
         Some(config) => config,
         None => {
@@ -591,6 +597,13 @@ pub async fn kami_login(req: &mut Request, depot: &mut Depot, res: &mut Response
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（避免 clone）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -626,7 +639,6 @@ pub async fn kami_login(req: &mut Request, depot: &mut Depot, res: &mut Response
     }
 
     // 获取登录配置
-    let db = app_state.get_db().expect("db");
     let logon_config = match get_logon_config(db, appid).await {
         Some(config) => config,
         None => {

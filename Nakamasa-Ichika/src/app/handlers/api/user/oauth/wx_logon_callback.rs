@@ -286,6 +286,10 @@ async fn __logon(
     wx_nickname: &str,
     wx_headimgurl: &str,
 ) -> (&'static str, i32, String) {
+    let db = match app_state.get_db() {
+        Some(pool) => pool,
+        None => return ("error", -1, "系统错误".to_string()),
+    };
     let redis_util = &app_state.redis_util;
     let redis_pool = app_state.redis_pool.as_ref().unwrap();
     let current_time = Utc::now().timestamp();
@@ -295,7 +299,7 @@ async fn __logon(
         sqlx::query_as::<_, (i64,)>("SELECT id FROM u_user WHERE open_wx = ? AND appid = ?")
             .bind(wx_openid)
             .bind(appid)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
     match existing_user {
@@ -313,7 +317,7 @@ async fn __logon(
                 "SELECT reg_award, reg_award_val, inviter_award, invitee_award, inviter_award_val, invitee_award_val FROM u_app WHERE id = ?"
             )
             .bind(appid)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
             let app_cfg = match app_result {
@@ -360,7 +364,7 @@ async fn __logon(
                 )
                 .bind(inv_id)
                 .bind(appid)
-                .fetch_optional(app_state.get_db().expect("db"))
+                .fetch_optional(db)
                 .await;
 
                 if let Ok(Some((inv_uid, inv_vip, inv_fen))) = inv_res {
@@ -376,13 +380,13 @@ async fn __logon(
                             let _ = sqlx::query("UPDATE u_user SET vip = ? WHERE id = ?")
                                 .bind(new_vip)
                                 .bind(inv_uid)
-                                .execute(app_state.get_db().expect("db"))
+                                .execute(db)
                                 .await;
                         } else {
                             let _ = sqlx::query("UPDATE u_user SET fen = ? WHERE id = ?")
                                 .bind(inv_fen + inviter_award_val)
                                 .bind(inv_uid)
-                                .execute(app_state.get_db().expect("db"))
+                                .execute(db)
                                 .await;
                         }
                     }
@@ -412,7 +416,7 @@ async fn __logon(
             .bind(&logon_info.udid)
             .bind(appid)
             .bind(inviter_id_val)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
             match insert_result {

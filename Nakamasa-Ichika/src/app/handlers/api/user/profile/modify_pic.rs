@@ -33,6 +33,13 @@ pub async fn modify_pic(req: &mut Request, depot: &mut Depot, res: &mut Response
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -96,7 +103,7 @@ pub async fn modify_pic(req: &mut Request, depot: &mut Depot, res: &mut Response
         .bind(avatars)
         .bind(uid as i64)
         .bind(appid as i64)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -111,7 +118,7 @@ pub async fn modify_pic(req: &mut Request, depot: &mut Depot, res: &mut Response
             .bind(current_time)
             .bind(ip)
             .bind(appid as i64)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
             tracing::info!("用户 {} 修改头像成功: {}", uid, avatars);

@@ -119,6 +119,13 @@ pub async fn ali_return(req: &mut Request, depot: &mut Depot, res: &mut Response
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Text::Html(render_result(-1, "服务器错误")));
+                                    return;
+            }
+        };
 
     let order_no = match req.param::<String>("order_no") {
         Some(no) => no,
@@ -128,7 +135,7 @@ pub async fn ali_return(req: &mut Request, depot: &mut Depot, res: &mut Response
         }
     };
 
-    query_and_show_order(app_state.get_db().expect("db"), &order_no, "ali", res).await;
+    query_and_show_order(db, &order_no, "ali", res).await;
 }
 
 /// 微信同步回调
@@ -141,6 +148,13 @@ pub async fn wx_return(req: &mut Request, depot: &mut Depot, res: &mut Response)
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Text::Html(render_result(-1, "服务器错误")));
+                                    return;
+            }
+        };
 
     let order_no = match req.param::<String>("order_no") {
         Some(no) => no,
@@ -150,5 +164,5 @@ pub async fn wx_return(req: &mut Request, depot: &mut Depot, res: &mut Response)
         }
     };
 
-    query_and_show_order(app_state.get_db().expect("db"), &order_no, "wx", res).await;
+    query_and_show_order(db, &order_no, "wx", res).await;
 }

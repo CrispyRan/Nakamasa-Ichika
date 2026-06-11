@@ -27,6 +27,13 @@ pub async fn message_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -77,7 +84,7 @@ pub async fn message_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
     )
     .bind(uid)
     .bind(appid)
-    .fetch_one(app_state.get_db().expect("db"))
+    .fetch_one(db)
     .await;
 
     let data_total = match count_result {
@@ -97,7 +104,7 @@ pub async fn message_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
         "SELECT id, title, time, last_time, state FROM u_message WHERE uid = ? AND reply_id IS NULL AND appid = ? ORDER BY id DESC LIMIT ? OFFSET ?"
     )
     .bind(uid).bind(appid).bind(PAGE_SIZE).bind(offset)
-    .fetch_all(app_state.get_db().expect("db"))
+    .fetch_all(db)
     .await;
 
     match result {

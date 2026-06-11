@@ -103,6 +103,13 @@ pub async fn get_code(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（避免 clone，直接使用引用）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -161,7 +168,7 @@ pub async fn get_code(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     let ip = get_client_ip(req);
 
     // 获取应用验证码配置
-    let vcode_config = get_vcode_config(app_state.get_db().expect("db"), appid).await;
+    let vcode_config = get_vcode_config(db, appid).await;
 
     // 验证码长度配置
     if vcode_config.vc_length <= 0 {
@@ -177,7 +184,7 @@ pub async fn get_code(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     .bind(ip)
     .bind(current_time - 3600) // timeRange() - 当前小时开始
     .bind(current_time) // timeRange(0,1) - 当前小时结束
-    .fetch_one(app_state.get_db().expect("db"))
+    .fetch_one(db)
     .await;
 
     if let Ok(count) = vcnum
@@ -193,7 +200,7 @@ pub async fn get_code(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     .bind(&code_req.account)
     .bind(current_time - 120)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     if let Ok(Some(_)) = vc_res {
@@ -201,7 +208,7 @@ pub async fn get_code(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         return;
     }
 
-    let mut tx = match app_state.get_db().expect("db").begin().await {
+    let mut tx = match db.begin().await {
         Ok(tx) => tx,
         Err(e) => {
             tracing::error!("开启事务失败: {}", e);

@@ -38,6 +38,13 @@ pub async fn qq_bind_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respons
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -92,7 +99,7 @@ pub async fn qq_bind_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respons
     .bind(&bind_req.openid)
     .bind(appid)
     .bind(uid as i64)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     match existing_user {
@@ -120,7 +127,7 @@ pub async fn qq_bind_sdk(req: &mut Request, depot: &mut Depot, res: &mut Respons
         .bind(&qq_bind_str)
         .bind(uid as i64)
         .bind(appid)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match update_result {

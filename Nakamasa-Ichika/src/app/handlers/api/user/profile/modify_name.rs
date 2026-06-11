@@ -26,6 +26,13 @@ pub async fn modify_name(req: &mut Request, depot: &mut Depot, res: &mut Respons
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（避免 clone）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -81,7 +88,7 @@ pub async fn modify_name(req: &mut Request, depot: &mut Depot, res: &mut Respons
         .bind(&modify_req.name)
         .bind(uid)
         .bind(appid)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -97,7 +104,7 @@ pub async fn modify_name(req: &mut Request, depot: &mut Depot, res: &mut Respons
                 .bind(current_time)
                 .bind(ip)
                 .bind(appid)
-                .execute(app_state.get_db().expect("db"))
+                .execute(db)
                 .await {
                     tracing::error!("日志写入失败: {}", e);
                 }

@@ -410,6 +410,13 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     // 获取appid
     let appid = match req.headers().get("appid") {
@@ -435,7 +442,7 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     // 获取应用类型
     let app_type: String = match sqlx::query_scalar("SELECT app_type FROM u_app WHERE id = ?")
         .bind(appid)
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(db)
         .await
     {
         Ok(Some(t)) => t,
@@ -451,7 +458,7 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     };
 
     // 优化：并行执行订单统计和用户统计查询
-    let db = app_state.get_db().expect("db");
+
     let redis_pool = &app_state.redis_pool;
 
     let (order_result, user_result) = tokio::join!(

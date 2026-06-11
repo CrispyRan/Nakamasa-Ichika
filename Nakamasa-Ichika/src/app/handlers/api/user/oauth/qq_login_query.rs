@@ -46,6 +46,13 @@ pub async fn qq_login_query(req: &mut Request, depot: &mut Depot, res: &mut Resp
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（零拷贝）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -137,7 +144,7 @@ pub async fn qq_login_query(req: &mut Request, depot: &mut Depot, res: &mut Resp
         "#,
     )
     .bind(uid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     let user_row = match user_result {
@@ -188,7 +195,7 @@ pub async fn qq_login_query(req: &mut Request, depot: &mut Depot, res: &mut Resp
         let _ = sqlx::query("UPDATE u_user SET sn_list = ? WHERE id = ?")
             .bind(&new_sn_list)
             .bind(user_id)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
     } else {
         let client_arr: Vec<serde_json::Value> = match sn_list_val {
@@ -211,7 +218,7 @@ pub async fn qq_login_query(req: &mut Request, depot: &mut Depot, res: &mut Resp
                     let _ = sqlx::query("UPDATE u_user SET sn_list = ? WHERE id = ?")
                         .bind(&sn_list_json)
                         .bind(user_id)
-                        .execute(app_state.get_db().expect("db"))
+                        .execute(db)
                         .await;
                 }
             } else {
@@ -220,7 +227,7 @@ pub async fn qq_login_query(req: &mut Request, depot: &mut Depot, res: &mut Resp
                 let _ = sqlx::query("UPDATE u_user SET sn_list = ? WHERE id = ?")
                     .bind(&new_sn_list)
                     .bind(user_id)
-                    .execute(app_state.get_db().expect("db"))
+                    .execute(db)
                     .await;
                 // TODO: 删除该用户所有token
             }

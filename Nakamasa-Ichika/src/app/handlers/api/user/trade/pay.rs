@@ -139,6 +139,13 @@ pub async fn pay(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -220,7 +227,7 @@ pub async fn pay(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(account)
     .bind(account)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     let (uid, inviter_id) = match u_res {
@@ -241,7 +248,7 @@ pub async fn pay(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     )
     .bind(pay_req.gid)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     let (gid, goods_name, goods_type, money, _blurb, val, state) = match g_res {
@@ -293,7 +300,7 @@ pub async fn pay(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         )
         .bind(inv_uid)
         .bind(appid)
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(db)
         .await;
 
         if let Ok(Some((_agent_id, pay_divide))) = a_res
@@ -313,7 +320,7 @@ pub async fn pay(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             sqlx::query_as::<_, (i64,)>("SELECT id FROM u_agent_group WHERE id = ? AND appid = ?")
                 .bind(val)
                 .bind(appid)
-                .fetch_optional(app_state.get_db().expect("db"))
+                .fetch_optional(db)
                 .await;
 
         match ag_res {
@@ -522,7 +529,7 @@ pub async fn pay(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(appid)
     .bind(inviter_id_val)
     .bind(divide_money_val)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match insert_result {

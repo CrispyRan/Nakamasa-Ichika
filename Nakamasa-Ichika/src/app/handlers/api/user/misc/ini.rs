@@ -70,6 +70,13 @@ pub async fn ini(_req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -98,7 +105,7 @@ pub async fn ini(_req: &mut Request, depot: &mut Depot, res: &mut Response) {
         "SELECT ver_val, ver_content, ver_url FROM u_app_ver WHERE appid = ? AND ver_state = 'on' ORDER BY ver_major DESC, ver_minor DESC, ver_patch DESC LIMIT 1"
     )
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     // 获取当前客户端版本（从请求参数或默认）
@@ -124,10 +131,10 @@ pub async fn ini(_req: &mut Request, depot: &mut Depot, res: &mut Response) {
     };
 
     // 获取最新通知（appid 为 NULL 表示全局公告，所有应用都可见）
-    let notice_data = fetch_notice(app_state.get_db().expect("db"), appid).await;
+    let notice_data = fetch_notice(db, appid).await;
 
     // 获取扩展配置
-    let extend_data = fetch_extend(app_state.get_db().expect("db"), appid).await;
+    let extend_data = fetch_extend(db, appid).await;
 
     let cached_data = json!({
         "extend": extend_data,

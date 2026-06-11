@@ -90,6 +90,13 @@ pub async fn cloud_function(req: &mut Request, depot: &mut Depot, res: &mut Resp
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（避免 clone）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -141,7 +148,7 @@ pub async fn cloud_function(req: &mut Request, depot: &mut Depot, res: &mut Resp
     )
     .bind(appid)
     .bind(&cf_req.name)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     let (code, _func_name, allow, fen) = match f_res {
@@ -222,7 +229,7 @@ pub async fn cloud_function(req: &mut Request, depot: &mut Depot, res: &mut Resp
     // 执行云函数（仅在需要时转换 client_ip）
     let result = execute_cloud_function(
         &code,
-        app_state.get_db().expect("db").clone(),
+        db.clone(),
         app_state.redis_pool.clone(),
         app_state.redis_util.clone(),
         client_ip.to_string(),
@@ -262,7 +269,7 @@ pub async fn cloud_function(req: &mut Request, depot: &mut Depot, res: &mut Resp
                     .bind(fen)
                     .bind(user_info.uid)
                     .bind(appid)
-                    .execute(app_state.get_db().expect("db"))
+                    .execute(db)
                     .await
                 {
                     tracing::error!("云函数积分扣减失败: uid={}, fen={}, error={}", user_info.uid, fen, e);
@@ -279,7 +286,7 @@ pub async fn cloud_function(req: &mut Request, depot: &mut Depot, res: &mut Resp
                 .bind(current_time)
                 .bind(client_ip)
                 .bind(appid as i64)
-                .execute(app_state.get_db().expect("db"))
+                .execute(db)
                 .await;
             }
         }

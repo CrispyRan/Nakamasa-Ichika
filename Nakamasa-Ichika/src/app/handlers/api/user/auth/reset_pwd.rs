@@ -33,6 +33,13 @@ pub async fn reset_pwd(req: &mut Request, depot: &mut Depot, res: &mut Response)
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（零拷贝）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -91,7 +98,7 @@ pub async fn reset_pwd(req: &mut Request, depot: &mut Depot, res: &mut Response)
     .bind("repwd")
     .bind(dtime)
     .bind(appid)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match verify_result {
@@ -115,7 +122,7 @@ pub async fn reset_pwd(req: &mut Request, depot: &mut Depot, res: &mut Response)
     .bind(&reset_req.account)
     .bind(&reset_req.account)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     match user_result {
@@ -128,7 +135,7 @@ pub async fn reset_pwd(req: &mut Request, depot: &mut Depot, res: &mut Response)
                 .bind(&new_hash)
                 .bind(uid)
                 .bind(appid)
-                .execute(app_state.get_db().expect("db"))
+                .execute(db)
                 .await;
 
             match result {
@@ -145,7 +152,7 @@ pub async fn reset_pwd(req: &mut Request, depot: &mut Depot, res: &mut Response)
                         .bind(current_time)
                         .bind(ip)
                         .bind(appid)
-                        .execute(app_state.get_db().expect("db"))
+                        .execute(db)
                         .await {
                             tracing::error!("日志写入失败: {}", e);
                         }

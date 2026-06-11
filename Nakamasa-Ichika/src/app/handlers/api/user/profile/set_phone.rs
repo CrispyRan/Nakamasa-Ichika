@@ -34,6 +34,13 @@ pub async fn set_phone(req: &mut Request, depot: &mut Depot, res: &mut Response)
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（零拷贝）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -96,7 +103,7 @@ pub async fn set_phone(req: &mut Request, depot: &mut Depot, res: &mut Response)
     .bind("ubind")
     .bind(dtime)
     .bind(appid)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match verify_result {
@@ -120,7 +127,7 @@ pub async fn set_phone(req: &mut Request, depot: &mut Depot, res: &mut Response)
     .bind(&set_req.phone)
     .bind(&set_req.phone)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     if let Ok(Some(_)) = phone_check {
@@ -133,7 +140,7 @@ pub async fn set_phone(req: &mut Request, depot: &mut Depot, res: &mut Response)
         .bind(&set_req.phone)
         .bind(uid)
         .bind(appid)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -150,7 +157,7 @@ pub async fn set_phone(req: &mut Request, depot: &mut Depot, res: &mut Response)
                 .bind(current_time)
                 .bind(ip)
                 .bind(appid)
-                .execute(app_state.get_db().expect("db"))
+                .execute(db)
                 .await;
 
                 render_success(res, app_key, None::<()>, app_info.mi.as_ref());

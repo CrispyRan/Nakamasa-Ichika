@@ -39,6 +39,13 @@ pub async fn message_content(req: &mut Request, depot: &mut Depot, res: &mut Res
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（避免 clone）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -109,7 +116,7 @@ pub async fn message_content(req: &mut Request, depot: &mut Depot, res: &mut Res
     .bind(content_req.mid)
     .bind(appid)
     .bind(appid)
-    .fetch_all(app_state.get_db().expect("db"))
+    .fetch_all(db)
     .await;
 
     match result {
@@ -150,7 +157,7 @@ pub async fn message_content(req: &mut Request, depot: &mut Depot, res: &mut Res
             let _ =
                 sqlx::query("UPDATE u_message SET state = 2 WHERE uid IS NULL AND reply_id = ?")
                     .bind(content_req.mid)
-                    .execute(app_state.get_db().expect("db"))
+                    .execute(db)
                     .await;
 
             render_success(res, app_key, Some(list), app_info.mi.as_ref());

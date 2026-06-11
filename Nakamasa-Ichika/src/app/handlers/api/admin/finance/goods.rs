@@ -54,6 +54,13 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let list_req = match req.parse_json::<GetListRequest>().await {
         Ok(data) => data,
@@ -117,7 +124,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     sql_query = sql_query.bind(page_size);
     sql_query = sql_query.bind(offset);
 
-    let result = sql_query.fetch_all(app_state.get_db().expect("db")).await;
+    let result = sql_query.fetch_all(db).await;
 
     match result {
         Ok(rows) => {
@@ -140,7 +147,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             for param in &count_params {
                 count_sql = count_sql.bind(param);
             }
-            let data_total = match count_sql.fetch_one(app_state.get_db().expect("db")).await {
+            let data_total = match count_sql.fetch_one(db).await {
                 Ok((count,)) => count,
                 Err(_) => list.len() as u64,
             };
@@ -188,6 +195,13 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let add_req = match req.parse_json::<AddGoodsRequest>().await {
         Ok(data) => data,
@@ -232,7 +246,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(add_req.money)
     .bind(add_req.blurb.unwrap_or_default())
     .bind(appid)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match result {
@@ -273,6 +287,13 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let edit_req = match req.parse_json::<EditGoodsRequest>().await {
         Ok(data) => data,
@@ -298,7 +319,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(edit_req.blurb.unwrap_or_default())
     .bind(edit_req.state.unwrap_or_else(|| "y".to_string()))
     .bind(edit_req.id)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match result {
@@ -331,6 +352,13 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let edit_req = match req.parse_json::<EditStateRequest>().await {
         Ok(data) => data,
@@ -349,7 +377,7 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
     let result = sqlx::query("UPDATE u_goods SET state = ? WHERE id = ?")
         .bind(&edit_req.state)
         .bind(edit_req.id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -381,6 +409,13 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let del_req = match req.parse_json::<DelRequest>().await {
         Ok(data) => data,
@@ -392,7 +427,7 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     let result = sqlx::query("DELETE FROM u_goods WHERE id = ?")
         .bind(del_req.id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {

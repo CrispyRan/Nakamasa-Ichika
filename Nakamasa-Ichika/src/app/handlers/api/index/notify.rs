@@ -389,6 +389,13 @@ async fn handle_notify_inner(
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Text::Plain("fail"));
+                                    return;
+            }
+        };
 
     // 获取订单号
     let order_no = match req.param::<String>("order_no") {
@@ -403,7 +410,7 @@ async fn handle_notify_inner(
     let order = match sqlx::query("SELECT * FROM u_order WHERE order_no = ? AND payment = ?")
         .bind(&order_no)
         .bind(payment)
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(db)
         .await
     {
         Ok(Some(o)) => o,
@@ -424,7 +431,7 @@ async fn handle_notify_inner(
     let appid: i64 = order.get("appid");
     let app = match sqlx::query(config_sql)
         .bind(appid)
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(db)
         .await
     {
         Ok(Some(a)) => a,
@@ -470,7 +477,7 @@ async fn handle_notify_inner(
     };
 
     // 更新订单
-    if update_order(app_state.get_db().expect("db"), &order, &notify_result, &app_type).await {
+    if update_order(db, &order, &notify_result, &app_type).await {
         res.render(Text::Plain("success"));
     } else {
         res.render(Text::Plain("fail"));

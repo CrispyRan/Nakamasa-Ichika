@@ -120,6 +120,13 @@ pub async fn get_info(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     // 解析请求参数
     let get_req = match req.parse_json::<GetInfoRequest>().await {
@@ -164,7 +171,7 @@ pub async fn get_info(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     // 查询应用信息
     let result = sqlx::query(&format!("SELECT {} FROM u_app WHERE id = ?", field_str))
         .bind(appid)
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(db)
         .await;
 
     match result {
@@ -303,6 +310,13 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let list_req = match req.parse_json::<GetListRequest>().await {
         Ok(data) => data,
@@ -401,7 +415,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         sql_query = sql_query.bind(param);
     }
 
-    let result = sql_query.fetch_all(app_state.get_db().expect("db")).await;
+    let result = sql_query.fetch_all(db).await;
 
     match result {
         Ok(rows) => {
@@ -422,7 +436,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             for param in &count_params {
                 count_sql = count_sql.bind(param);
             }
-            let data_total = match count_sql.fetch_one(app_state.get_db().expect("db")).await {
+            let data_total = match count_sql.fetch_one(db).await {
                 Ok((count,)) => count,
                 Err(_) => list.len() as u64,
             };
@@ -470,17 +484,24 @@ pub async fn get_inherit(_req: &mut Request, depot: &mut Depot, res: &mut Respon
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let kami_result =
         sqlx::query_as::<_, (u64, String)>("SELECT id, app_name FROM u_app WHERE app_type = ?")
             .bind("kami")
-            .fetch_all(app_state.get_db().expect("db"))
+            .fetch_all(db)
             .await;
 
     let user_result =
         sqlx::query_as::<_, (u64, String)>("SELECT id, app_name FROM u_app WHERE app_type = ?")
             .bind("user")
-            .fetch_all(app_state.get_db().expect("db"))
+            .fetch_all(db)
             .await;
 
     match (kami_result, user_result) {
@@ -543,6 +564,13 @@ pub async fn get_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     // 根据请求协议动态生成 app_url
     let configured_host = app_state.config().app().host();
@@ -565,7 +593,7 @@ pub async fn get_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let result = sqlx::query_as::<_, (u64, String, String, String, Option<String>, String)>(
         "SELECT id, app_key, app_type, app_name, app_logo, app_state FROM u_app ORDER BY id DESC",
     )
-    .fetch_all(app_state.get_db().expect("db"))
+    .fetch_all(db)
     .await;
 
     match result {
@@ -633,6 +661,13 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let add_req = match req.parse_json::<AddAppRequest>().await {
         Ok(data) => data,
@@ -658,7 +693,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     // 检查应用名称是否重复
     let check_result = sqlx::query_as::<_, (u64,)>("SELECT id FROM u_app WHERE app_name = ?")
         .bind(add_req.app_name.clone())
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(db)
         .await;
 
     match check_result {
@@ -696,7 +731,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     {
         let inherit_result = sqlx::query("SELECT * FROM u_app WHERE id = ?")
             .bind(inherit_id)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
         match inherit_result {
@@ -721,7 +756,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(add_req.app_name.clone())
             .bind(&data[1].1)
             .bind(add_req.app_type.clone())
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
     match insert_result {
@@ -748,6 +783,13 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     // 获取appid
     let appid = match req.headers().get("appid") {
@@ -844,7 +886,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     }
     sql_query = sql_query.bind(appid);
 
-    let result = sql_query.execute(app_state.get_db().expect("db")).await;
+    let result = sql_query.execute(db).await;
 
     match result {
         Ok(r) => {
@@ -878,6 +920,13 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let del_req = match req.parse_json::<DelRequest>().await {
         Ok(data) => data,
@@ -899,7 +948,7 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     }
 
     // 开始事务
-    let mut tx = match app_state.get_db().expect("db").begin().await {
+    let mut tx = match db.begin().await {
         Ok(t) => t,
         Err(e) => {
             tracing::error!("事务开始失败: {}", e);

@@ -79,6 +79,13 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let list_req = match req.parse_json::<GetListRequest>().await {
         Ok(data) => data,
@@ -237,7 +244,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         count_sql_query = count_sql_query.bind(param);
     }
 
-    let total: i64 = match count_sql_query.fetch_one(app_state.get_db().expect("db")).await {
+    let total: i64 = match count_sql_query.fetch_one(db).await {
         Ok(row) => row.try_get("total").unwrap_or(0),
         Err(e) => {
             tracing::error!("数据库查询失败: {}", e);
@@ -256,7 +263,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         sql_query = sql_query.bind(param);
     }
 
-    let result = sql_query.fetch_all(app_state.get_db().expect("db")).await;
+    let result = sql_query.fetch_all(db).await;
 
     match result {
         Ok(rows) => {
@@ -353,6 +360,13 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let add_req = match req.parse_json::<AddCDKKamiRequest>().await {
         Ok(data) => data,
@@ -401,7 +415,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     )
     .bind(add_req.gid)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     let (group_id, _group_name, group_val, group_type) = match group_result {
@@ -425,7 +439,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let has_out = out_state.as_ref().is_some_and(|s| !s.is_empty());
 
     // 开始事务
-    let mut tx = match app_state.get_db().expect("db").begin().await {
+    let mut tx = match db.begin().await {
         Ok(tx) => tx,
         Err(e) => {
             let error_msg = format!("创建失败: 无法开始事务 {}", e);
@@ -585,6 +599,13 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let award_req = match req.parse_json::<AwardRequest>().await {
         Ok(data) => data,
@@ -632,7 +653,7 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sqlx::query("UPDATE u_cdk_kami SET val = val + ? WHERE type = 'fen' AND val < 9999999999 AND use_id IS NULL AND use_time IS NOT NULL AND appid = ?")
             .bind(award_req.val)
             .bind(appid)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await
     } else {
         // 奖励会员卡
@@ -640,7 +661,7 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(award_req.val)
             .bind(now)
             .bind(appid)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await
     };
 
@@ -680,6 +701,13 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let edit_req = match req.parse_json::<EditCDKKamiRequest>().await {
         Ok(data) => data,
@@ -705,7 +733,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         "SELECT id, type, use_time FROM u_cdk_kami WHERE id = ?",
     )
     .bind(edit_req.id)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     let (_id, cdk_type, use_time) = match check_result {
@@ -779,7 +807,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     }
     sql_query = sql_query.bind(edit_req.id);
 
-    let result = sql_query.execute(app_state.get_db().expect("db")).await;
+    let result = sql_query.execute(db).await;
 
     match result {
         Ok(r) => {
@@ -810,6 +838,13 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let del_req = match req.parse_json::<DelRequest>().await {
         Ok(data) => data,
@@ -821,7 +856,7 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     let result = sqlx::query("DELETE FROM u_cdk_kami WHERE id = ?")
         .bind(del_req.id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -854,6 +889,13 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let edit_req = match req.parse_json::<EditStateRequest>().await {
         Ok(data) => data,
@@ -871,14 +913,14 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
         // 取消封禁
         sqlx::query("UPDATE u_cdk_kami SET ban = NULL WHERE id = ?")
             .bind(edit_req.id)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await
     } else {
         // 设置封禁（永久）
         sqlx::query("UPDATE u_cdk_kami SET ban = ? WHERE id = ?")
             .bind(9999999999i64)
             .bind(edit_req.id)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await
     };
 
@@ -911,6 +953,13 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let del_req = match req.parse_json::<DelAllRequest>().await {
         Ok(data) => data,
@@ -938,7 +987,7 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sql_query = sql_query.bind(id);
     }
 
-    let result = sql_query.execute(app_state.get_db().expect("db")).await;
+    let result = sql_query.execute(db).await;
 
     match result {
         Ok(r) => {
@@ -972,6 +1021,13 @@ pub async fn out_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let out_req = match req.parse_json::<OutAllRequest>().await {
         Ok(data) => data,
@@ -1006,7 +1062,7 @@ pub async fn out_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sql_query = sql_query.bind(id);
     }
 
-    let result = sql_query.fetch_all(app_state.get_db().expect("db")).await;
+    let result = sql_query.fetch_all(db).await;
 
     match result {
         Ok(rows) => {
@@ -1034,7 +1090,7 @@ pub async fn out_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                 update_sql = update_sql.bind(id);
             }
 
-            let _ = update_sql.execute(app_state.get_db().expect("db")).await;
+            let _ = update_sql.execute(db).await;
 
             res.render(Json(ApiResponse::success_msg("导出成功")));
         }
@@ -1059,6 +1115,13 @@ pub async fn get_log(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let log_req = match req.parse_json::<GetLogRequest>().await {
         Ok(data) => data,
@@ -1093,7 +1156,7 @@ pub async fn get_log(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     )
     .bind(log_req.id)
     .bind(appid)
-    .fetch_all(app_state.get_db().expect("db"))
+    .fetch_all(db)
     .await;
 
     match result {
@@ -1142,6 +1205,13 @@ pub async fn unbind_sn(req: &mut Request, depot: &mut Depot, res: &mut Response)
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let unbind_req = match req.parse_json::<UnbindSnRequest>().await {
         Ok(data) => data,
@@ -1169,7 +1239,7 @@ pub async fn unbind_sn(req: &mut Request, depot: &mut Depot, res: &mut Response)
         "SELECT id, sn_list FROM u_cdk_kami WHERE id = ?",
     )
     .bind(unbind_req.id)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     let (_id, sn_list) = match check_result {
@@ -1215,7 +1285,7 @@ pub async fn unbind_sn(req: &mut Request, depot: &mut Depot, res: &mut Response)
     let result = sqlx::query("UPDATE u_cdk_kami SET sn_list = ? WHERE id = ?")
         .bind(new_sn_list_json)
         .bind(unbind_req.id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -1242,6 +1312,13 @@ pub async fn clear(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let appid = match req.headers().get("appid") {
         Some(h) => match h.to_str() {
@@ -1266,7 +1343,7 @@ pub async fn clear(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     // 清理已使用的卡密
     let result = sqlx::query("DELETE FROM u_cdk_kami WHERE use_time IS NOT NULL AND appid = ?")
         .bind(appid)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {

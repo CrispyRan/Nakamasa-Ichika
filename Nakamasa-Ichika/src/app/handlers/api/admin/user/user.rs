@@ -89,6 +89,13 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     // 解析请求参数
     let list_req = match req.parse_json::<GetListRequest>().await {
@@ -229,7 +236,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         count_sql_query = count_sql_query.bind(param);
     }
 
-    let total: i64 = match count_sql_query.fetch_one(app_state.get_db().expect("db")).await {
+    let total: i64 = match count_sql_query.fetch_one(db).await {
         Ok(row) => row.try_get("total").unwrap_or(0),
         Err(_e) => {
             res.render(Json(ApiResponse::<()>::error("列表获取失败", 201)));
@@ -253,7 +260,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     sql_query = sql_query.bind(size).bind(offset);
 
     // 执行查询
-    let result = sql_query.fetch_all(app_state.get_db().expect("db")).await;
+    let result = sql_query.fetch_all(db).await;
 
     match result {
         Ok(rows) => {
@@ -346,6 +353,13 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let add_req = match req.parse_json::<AddUserRequest>().await {
         Ok(data) => data,
@@ -388,7 +402,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sqlx::query_as::<_, (i64,)>("SELECT id FROM u_user WHERE acctno = ? AND appid = ?")
             .bind(&add_req.acctno)
             .bind(&appid)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
     match check_result {
@@ -424,7 +438,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(now)
     .bind(&ip)
     .bind(&appid)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match result {
@@ -442,7 +456,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                 .bind(now)
                 .bind(&ip)
                 .bind(&appid)
-                .execute(app_state.get_db().expect("db"))
+                .execute(db)
                 .await;
             }
 
@@ -471,6 +485,13 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let award_req = match req.parse_json::<AwardRequest>().await {
         Ok(data) => data,
@@ -523,7 +544,7 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                 sqlx::query("UPDATE u_user SET fen = fen + ? WHERE fen < 9999999999 AND appid = ?")
                     .bind(val_seconds)
                     .bind(&appid)
-                    .execute(app_state.get_db().expect("db"))
+                    .execute(db)
                     .await;
             if let Ok(r) = result {
                 success = r.rows_affected() > 0;
@@ -537,7 +558,7 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(val_seconds)
             .bind(now)
             .bind(&appid)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
             // 2. 对VIP已过期或为空的用户，设置为当前时间+奖励时间
@@ -547,7 +568,7 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(now + val_seconds)
             .bind(now)
             .bind(&appid)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
             success = res1.is_ok() && res2.is_ok();
@@ -562,7 +583,7 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(val_seconds)
             .bind(now)
             .bind(&appid)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
             if let Ok(r) = result {
                 success = r.rows_affected() > 0;
@@ -575,7 +596,7 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(val_seconds)
             .bind(now)
             .bind(&appid)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
             if let Ok(r) = result {
                 success = r.rows_affected() > 0;
@@ -595,7 +616,7 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         .bind(now)
         .bind(&ip)
         .bind(&appid)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
                     .await;
     }
 
@@ -694,6 +715,13 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let edit_req = match req.parse_json::<EditUserRequest>().await {
         Ok(data) => data,
@@ -790,7 +818,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         "SELECT id, vip, fen, appid FROM u_user WHERE id = ?",
     )
     .bind(edit_req.id)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     let (old_vip, old_fen) = match user_result {
@@ -964,7 +992,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     }
 
-    let result = sql_query.execute(app_state.get_db().expect("db")).await;
+    let result = sql_query.execute(db).await;
 
     match result {
         Ok(r) => {
@@ -984,7 +1012,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                     .bind(now)
                     .bind(&ip)
                     .bind(&appid)
-                    .execute(app_state.get_db().expect("db"))
+                    .execute(db)
                     .await;
                 }
 
@@ -1014,6 +1042,13 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let del_req = match req.parse_json::<DelRequest>().await {
         Ok(data) => data,
@@ -1041,7 +1076,7 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let result = sqlx::query("DELETE FROM u_user WHERE id = ? AND appid = ?")
         .bind(del_req.id)
         .bind(&appid)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -1129,6 +1164,13 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let get_req = match req.parse_json::<GetUserRequest>().await {
         Ok(data) => data,
@@ -1165,7 +1207,7 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     )
     .bind(get_req.id)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     let user_info = match user_result {
@@ -1220,7 +1262,7 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind("user")
     .bind(get_req.id)
     .bind(appid)
-    .fetch_all(app_state.get_db().expect("db"))
+    .fetch_all(db)
     .await;
 
     let log_list = match log_result {
@@ -1293,6 +1335,13 @@ pub async fn update_info(req: &mut Request, depot: &mut Depot, res: &mut Respons
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     // 获取当前管理员ID
     let admin_id: u64 = match depot.get::<u64>("admin_id") {
@@ -1347,7 +1396,7 @@ pub async fn update_info(req: &mut Request, depot: &mut Depot, res: &mut Respons
     }
     sql_query = sql_query.bind(admin_id);
 
-    let result = sql_query.execute(app_state.get_db().expect("db")).await;
+    let result = sql_query.execute(db).await;
 
     match result {
         Ok(r) => {
@@ -1365,7 +1414,7 @@ pub async fn update_info(req: &mut Request, depot: &mut Depot, res: &mut Respons
                 .bind(true)
                 .bind(now)
                 .bind(&ip)
-                .execute(app_state.get_db().expect("db"))
+                .execute(db)
                 .await;
 
                 res.render(Json(ApiResponse::success_msg("更新成功")));
@@ -1401,6 +1450,13 @@ pub async fn modify_password(req: &mut Request, depot: &mut Depot, res: &mut Res
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     // 获取当前管理员ID
     let admin_id: u64 = match depot.get::<u64>("admin_id") {
@@ -1445,7 +1501,7 @@ pub async fn modify_password(req: &mut Request, depot: &mut Depot, res: &mut Res
     let current_password: String =
         match sqlx::query_scalar::<_, String>("SELECT password FROM u_admin WHERE id = ?")
             .bind(admin_id)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await
         {
             Ok(Some(pwd)) => pwd,
@@ -1506,7 +1562,7 @@ pub async fn modify_password(req: &mut Request, depot: &mut Depot, res: &mut Res
     let result = sqlx::query("UPDATE u_admin SET password = ? WHERE id = ?")
         .bind(&new_pwd_hash)
         .bind(admin_id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -1527,7 +1583,7 @@ pub async fn modify_password(req: &mut Request, depot: &mut Depot, res: &mut Res
                 .bind(true)
                 .bind(now)
                 .bind(&ip)
-                .execute(app_state.get_db().expect("db"))
+                .execute(db)
                 .await;
 
                 res.render(Json(ApiResponse::success_msg("密码修改成功")));

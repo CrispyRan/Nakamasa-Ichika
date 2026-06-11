@@ -26,6 +26,13 @@ pub async fn get_all_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let appid = match req.headers().get("appid") {
         Some(h) => match h.to_str() {
@@ -51,7 +58,7 @@ pub async fn get_all_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
         "SELECT id, name FROM u_fen_event WHERE appid = ? ORDER BY id DESC",
     )
     .bind(appid)
-    .fetch_all(app_state.get_db().expect("db"))
+    .fetch_all(db)
     .await;
 
     match result {
@@ -121,6 +128,13 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let list_req = match req.parse_json::<GetListRequest>().await {
         Ok(data) => data,
@@ -178,7 +192,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         count_sql = count_sql.bind(param);
     }
 
-    let data_total = match count_sql.fetch_one(app_state.get_db().expect("db")).await {
+    let data_total = match count_sql.fetch_one(db).await {
         Ok((count,)) => count,
         Err(e) => {
             tracing::error!("查询总数失败: {}", e);
@@ -201,7 +215,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     }
     data_sql = data_sql.bind(size).bind(offset);
 
-    let result = data_sql.fetch_all(app_state.get_db().expect("db")).await;
+    let result = data_sql.fetch_all(db).await;
 
     match result {
         Ok(rows) => {
@@ -262,6 +276,13 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let add_req = match req.parse_json::<AddFenEventRequest>().await {
         Ok(data) => data,
@@ -342,7 +363,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sqlx::query_as::<_, (i64,)>("SELECT id FROM u_fen_event WHERE name = ? AND appid = ?")
             .bind(&add_req.name)
             .bind(appid)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
     match check_result {
@@ -368,7 +389,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(vip_value)
     .bind(&add_req.vip_free)
     .bind(appid)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match insert_result {
@@ -414,6 +435,13 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let edit_req = match req.parse_json::<EditFenEventRequest>().await {
         Ok(data) => data,
@@ -501,7 +529,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sqlx::query_as::<_, (i64,)>("SELECT id FROM u_fen_event WHERE name = ? AND appid = ?")
             .bind(&edit_req.name)
             .bind(appid)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
     match check_result {
@@ -528,7 +556,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(vip_value)
             .bind(&edit_req.vip_free)
             .bind(edit_req.id)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
     match update_result {
@@ -570,6 +598,13 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     //   'id' => ['int','1,11','删除ID有误'],
     //   'state' => ['sameone','on,off','状态不规范'],
@@ -598,7 +633,7 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
     let result = sqlx::query("UPDATE u_fen_event SET state = ? WHERE id = ?")
         .bind(&edit_state_req.state)
         .bind(edit_state_req.id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -639,6 +674,13 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
 
     let del_req = match req.parse_json::<DelRequest>().await {
@@ -657,7 +699,7 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     let result = sqlx::query("DELETE FROM u_fen_event WHERE id = ?")
         .bind(del_req.id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -698,6 +740,13 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
 
     let del_all_req = match req.parse_json::<DelAllRequest>().await {
@@ -726,7 +775,7 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sql_query = sql_query.bind(id);
     }
 
-    let result = sql_query.execute(app_state.get_db().expect("db")).await;
+    let result = sql_query.execute(db).await;
 
     match result {
         Ok(delete_result) => {
@@ -758,6 +807,10 @@ async fn add_log(
     app_state: &Arc<AppState>,
     record_id: u64,
 ) -> Result<(), sqlx::Error> {
+    let db = match app_state.get_db() {
+        Some(pool) => pool,
+        None => return Err(sqlx::Error::Protocol("数据库连接不可用".to_string())),
+    };
     let now = chrono::Utc::now().timestamp();
 
     let asset_changes = serde_json::json!({
@@ -778,7 +831,7 @@ async fn add_log(
     .bind("edit")
     .bind(serde_json::to_string(&asset_changes).unwrap_or_default())
     .bind(now)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await?;
 
     Ok(())

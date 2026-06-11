@@ -33,6 +33,13 @@ pub async fn re_email(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -96,7 +103,7 @@ pub async fn re_email(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     .bind("reEmail")
     .bind(dtime)
     .bind(appid)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match verify_result {
@@ -117,7 +124,7 @@ pub async fn re_email(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     let result = sqlx::query("UPDATE u_user SET email = NULL WHERE id = ? AND appid = ?")
         .bind(uid)
         .bind(appid)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -134,7 +141,7 @@ pub async fn re_email(req: &mut Request, depot: &mut Depot, res: &mut Response) 
                 .bind(current_time)
                 .bind(ip)
                 .bind(appid)
-                .execute(app_state.get_db().expect("db"))
+                .execute(db)
                 .await;
 
                 render_success(res, app_key, None::<()>, app_info.mi.as_ref());

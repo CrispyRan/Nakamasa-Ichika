@@ -24,6 +24,13 @@ pub async fn message_end(req: &mut Request, depot: &mut Depot, res: &mut Respons
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（避免 clone）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -72,7 +79,7 @@ pub async fn message_end(req: &mut Request, depot: &mut Depot, res: &mut Respons
             .bind(end_req.mid)
             .bind(uid)
             .bind(appid)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
     match result {

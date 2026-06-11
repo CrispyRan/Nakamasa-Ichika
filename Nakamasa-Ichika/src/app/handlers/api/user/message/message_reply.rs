@@ -25,6 +25,13 @@ pub async fn message_reply(req: &mut Request, depot: &mut Depot, res: &mut Respo
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                render_error(res, "系统错误", 201, "");
+                return;
+            }
+        };
 
     // 获取应用信息（避免 clone）
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -76,7 +83,7 @@ pub async fn message_reply(req: &mut Request, depot: &mut Depot, res: &mut Respo
     .bind(reply_req.mid)
     .bind(uid)
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(db)
     .await;
 
     match m_res {
@@ -105,14 +112,14 @@ pub async fn message_reply(req: &mut Request, depot: &mut Depot, res: &mut Respo
                 )
                 .bind(uid).bind(&reply_req.content).bind(file)
                 .bind(reply_req.mid).bind(current_time).bind(appid)
-                .execute(app_state.get_db().expect("db")).await
+                .execute(db).await
             } else {
                 sqlx::query(
                     "INSERT INTO u_message (uid, content, reply_id, time, appid) VALUES (?, ?, ?, ?, ?)"
                 )
                 .bind(uid).bind(&reply_req.content)
                 .bind(reply_req.mid).bind(current_time).bind(appid)
-                .execute(app_state.get_db().expect("db")).await
+                .execute(db).await
             };
 
             match insert_result {
@@ -124,7 +131,7 @@ pub async fn message_reply(req: &mut Request, depot: &mut Depot, res: &mut Respo
                         )
                         .bind(current_time)
                         .bind(reply_req.mid)
-                        .execute(app_state.get_db().expect("db"))
+                        .execute(db)
                         .await;
 
                         render_success(res, app_key, None::<()>, app_info.mi.as_ref());

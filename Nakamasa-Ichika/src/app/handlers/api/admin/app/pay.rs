@@ -117,6 +117,13 @@ pub async fn get_info(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     // 获取 appid
     let appid = match req.headers().get("appid") {
@@ -145,7 +152,7 @@ pub async fn get_info(req: &mut Request, depot: &mut Depot, res: &mut Response) 
 
     let row = sqlx::query(&sql)
         .bind(appid)
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(db)
         .await;
 
     let row = match row {
@@ -224,6 +231,13 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let edit_req = match req.parse_json::<EditPayRequest>().await {
         Ok(data) => data,
@@ -302,7 +316,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(&ch.plugin_type)
             .bind(&config_bytes)
             .bind(edit_req.id)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
         if let Err(e) = update {
@@ -332,7 +346,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(now)
     .bind(&ip)
     .bind(Option::<i64>::None)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     res.render(Json(ApiResponse::success_msg("编辑成功")));

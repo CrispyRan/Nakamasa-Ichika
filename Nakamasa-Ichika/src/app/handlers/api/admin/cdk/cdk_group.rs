@@ -22,6 +22,13 @@ pub async fn get_all_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let appid = match req.headers().get("appid") {
         Some(h) => match h.to_str() {
@@ -47,7 +54,7 @@ pub async fn get_all_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
         "SELECT id, name FROM u_cdk_group WHERE appid = ? ORDER BY id DESC",
     )
     .bind(appid)
-    .fetch_all(app_state.get_db().expect("db"))
+    .fetch_all(db)
     .await;
 
     match result {
@@ -115,6 +122,13 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let list_req = match req.parse_json::<GetListRequest>().await {
         Ok(data) => data,
@@ -190,12 +204,12 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         sqlx::query_as::<_, (i64,)>(&total_query)
             .bind(appid)
             .bind(pattern)
-            .fetch_one(app_state.get_db().expect("db"))
+            .fetch_one(db)
             .await
     } else {
         sqlx::query_as::<_, (i64,)>(&total_query)
             .bind(appid)
-            .fetch_one(app_state.get_db().expect("db"))
+            .fetch_one(db)
             .await
     };
 
@@ -205,14 +219,14 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             .bind(pattern)
             .bind(page_size as i64)
             .bind(offset as i64)
-            .fetch_all(app_state.get_db().expect("db"))
+            .fetch_all(db)
             .await
     } else {
         sqlx::query_as::<_, (u64, String, String, i64, f64, i64)>(&list_query)
             .bind(appid)
             .bind(page_size as i64)
             .bind(offset as i64)
-            .fetch_all(app_state.get_db().expect("db"))
+            .fetch_all(db)
             .await
     };
 
@@ -280,6 +294,13 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let add_req = match req.parse_json::<AddCDKGroupRequest>().await {
         Ok(data) => data,
@@ -314,7 +335,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sqlx::query_as::<_, (u64,)>("SELECT id FROM u_cdk_group WHERE appid = ? AND name = ?")
             .bind(appid)
             .bind(&add_req.name)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
     match check_result {
@@ -338,7 +359,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(add_req.val)
     .bind(add_req.price)
     .bind(appid)
-    .execute(app_state.get_db().expect("db"))
+    .execute(db)
     .await;
 
     match insert_result {
@@ -376,6 +397,13 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let edit_req = match req.parse_json::<EditCDKGroupRequest>().await {
         Ok(data) => data,
@@ -410,7 +438,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sqlx::query_as::<_, (u64,)>("SELECT id FROM u_cdk_group WHERE appid = ? AND name = ?")
             .bind(appid)
             .bind(&edit_req.name)
-            .fetch_optional(app_state.get_db().expect("db"))
+            .fetch_optional(db)
             .await;
 
     match check_result {
@@ -433,7 +461,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(edit_req.val)
             .bind(edit_req.price)
             .bind(edit_req.id)
-            .execute(app_state.get_db().expect("db"))
+            .execute(db)
             .await;
 
     match result {
@@ -465,6 +493,13 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let del_req = match req.parse_json::<DelRequest>().await {
         Ok(data) => data,
@@ -476,7 +511,7 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     let result = sqlx::query("DELETE FROM u_cdk_group WHERE id = ?")
         .bind(del_req.id)
-        .execute(app_state.get_db().expect("db"))
+        .execute(db)
         .await;
 
     match result {
@@ -508,6 +543,13 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
+        let db = match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                    return;
+            }
+        };
 
     let del_all_req = match req.parse_json::<DelAllRequest>().await {
         Ok(data) => data,
@@ -535,7 +577,7 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         sql_query = sql_query.bind(id);
     }
 
-    let result = sql_query.execute(app_state.get_db().expect("db")).await;
+    let result = sql_query.execute(db).await;
 
     match result {
         Ok(r) => {
