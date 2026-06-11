@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! 数据库迁移模块
 //!
@@ -22,13 +21,14 @@ pub const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MigrationType {
     Database, // 只更新数据库
+    #[allow(dead_code)] // 保留备用：可用于仅配置文件更新的场景
     Config,   // 只更新配置文件
     Both,     // 两者都更新
 }
 
 /// SQL 来源，支持字符串或字符串数组
-#[allow(dead_code)]
 enum SqlSource {
+    #[allow(dead_code)] // 保留备用：可用于未来单条 SQL 迁移
     String(&'static str),                // 单个字符串（按分号分割执行）
     Statements(&'static [&'static str]), // 语句数组（每条单独执行）
 }

@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! 终端国际化模块
 //!
@@ -201,6 +200,7 @@ pub fn init_terminal_language() {
 }
 
 /// 检查终端资源是否已加载
+#[allow(dead_code)]
 pub fn is_resources_loaded() -> bool {
     !TERMINAL_RESOURCES.is_empty()
 }

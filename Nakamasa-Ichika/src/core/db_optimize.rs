@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! # 数据库优化工具模块
 //!
@@ -17,12 +16,16 @@ use tokio::sync::Semaphore;
 /// - 连接数控制（信号量）
 /// - 语句缓存
 /// - 批量插入
+// 保留：数据库连接池基础设施（为批量插入预留）
+#[allow(dead_code)]
 pub struct SmartPool {
     pool: sqlx::AnyPool,
     semaphore: Arc<Semaphore>,
     statement_cache: Arc<tokio::sync::RwLock<HashMap<String, String>>>,
 }
 
+// 保留：连接池方法与批量插入逻辑（等待实际调用方接入）
+#[allow(dead_code)]
 impl SmartPool {
     /// 创建新的智能连接池
     ///
@@ -79,11 +82,15 @@ impl SmartPool {
 /// 高性能行处理
 ///
 /// 通过缓存列索引加速字段访问。
+// 保留：行级高速缓存读取工具（为性能敏感查询预留）
+#[allow(dead_code)]
 pub struct FastRow<'a> {
     row: &'a sqlx::any::AnyRow,
     column_indices: HashMap<String, usize>,
 }
 
+// 保留：FastRow 字段访问方法（等待性能优化阶段接入）
+#[allow(dead_code)]
 impl<'a> FastRow<'a> {
     /// 从 AnyRow 创建 FastRow
     pub fn new(row: &'a sqlx::any::AnyRow) -> Self {

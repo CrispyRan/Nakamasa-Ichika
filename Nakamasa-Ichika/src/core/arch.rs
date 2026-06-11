@@ -1,14 +1,15 @@
-#![allow(dead_code)]
 
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
 /// 零成本抽象：异步执行器包装器
+#[allow(dead_code)] // 保留：异步执行器基础设施
 pub struct Executor<F> {
     inner: F,
 }
 
+#[allow(dead_code)] // 保留：异步执行器构造函数
 impl<F> Executor<F> {
     pub const fn new(inner: F) -> Self {
         Self { inner }
@@ -24,6 +25,7 @@ impl<F: Future> Future for Executor<F> {
 }
 
 /// 高性能Future组合器
+#[allow(dead_code)] // 保留供运行时使用者按需调用
 pub trait FutureExt: Future {
     fn map<U, F>(self, f: F) -> Map<Self, F>
     where
@@ -36,6 +38,7 @@ pub trait FutureExt: Future {
 
 impl<F: Future> FutureExt for F {}
 
+#[allow(dead_code)] // 保留供运行时使用者按需调用
 pub struct Map<Fut, F> {
     future: Fut,
     f: F,

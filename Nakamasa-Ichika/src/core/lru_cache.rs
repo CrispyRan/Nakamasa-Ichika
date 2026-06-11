@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! LRU 缓存实现
 //!
@@ -17,6 +16,8 @@ use tokio::sync::RwLock;
 // ============================================================================
 
 /// 缓存节点
+/// Kept as lightweight fallback; prefer nakamasa-utils ShardedCacheV2
+#[allow(dead_code)]
 struct CacheNode<V> {
     value: V,
     last_access: Instant,
@@ -25,6 +26,7 @@ struct CacheNode<V> {
 
 impl<V> CacheNode<V> {
     #[inline]
+    #[allow(dead_code)]
     fn is_expired(&self) -> bool {
         Instant::now() > self.expires_at
     }
@@ -37,6 +39,7 @@ impl<V> CacheNode<V> {
 /// 简单的 LRU 缓存实现
 ///
 /// 注意：此实现使用 RwLock，高并发场景建议使用 ShardedLruCache 或 ShardedCacheV2
+#[allow(dead_code)]
 pub struct LruCache<K, V>
 where
     K: Hash + Eq + Clone + Send + Sync + 'static,
@@ -48,6 +51,7 @@ where
     access_order: Arc<RwLock<Vec<K>>>,
 }
 
+#[allow(dead_code)] // 保留：LruCache 方法（尚未被业务代码直接调用）
 impl<K, V> LruCache<K, V>
 where
     K: Hash + Eq + Clone + Send + Sync + 'static,
@@ -214,6 +218,7 @@ where
 /// 分片 LRU 缓存
 ///
 /// 通过分片减少锁竞争，适合高并发场景
+#[allow(dead_code)]
 pub struct ShardedLruCache<K, V>
 where
     K: Hash + Eq + Clone + Send + Sync + 'static,
@@ -223,6 +228,7 @@ where
     shard_count: usize,
 }
 
+#[allow(dead_code)] // 保留：ShardedLruCache 方法（尚未被业务代码直接调用）
 impl<K, V> ShardedLruCache<K, V>
 where
     K: Hash + Eq + Clone + Send + Sync + 'static,

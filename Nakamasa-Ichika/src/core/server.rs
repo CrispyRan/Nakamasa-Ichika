@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! HTTP 服务器模块
 //!
@@ -156,6 +155,7 @@ impl Server {
 // ============================================================================
 
 /// 服务器运行时状态
+#[allow(dead_code)]
 pub struct ServerState {
     /// 启动时间
     pub start_time: std::time::Instant,
@@ -165,6 +165,7 @@ pub struct ServerState {
     pub active_connections: std::sync::atomic::AtomicU64,
 }
 
+#[allow(dead_code)]
 impl ServerState {
     /// 创建新的服务器状态
     pub fn new() -> Self {

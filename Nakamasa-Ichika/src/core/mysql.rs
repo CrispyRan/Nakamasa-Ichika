@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! MySQL 数据库连接池模块
 //!
@@ -109,6 +108,7 @@ async fn log_database_version(pool: &Pool<MySql>) -> anyhow::Result<()> {
 }
 
 /// 执行健康检查
+#[allow(dead_code)] // TODO: 预留健康检查接口，后续可能用于 /api/health 路由
 pub async fn health_check(pool: &Pool<MySql>) -> bool {
     match sqlx::query("SELECT 1").execute(pool).await {
         Ok(_) => true,
@@ -120,6 +120,7 @@ pub async fn health_check(pool: &Pool<MySql>) -> bool {
 }
 
 /// 获取连接池统计信息
+#[allow(dead_code)] // TODO: 预留连接池状态监控接口，后续可能用于 TUI 仪表盘或管理后台
 pub fn pool_status(pool: &Pool<MySql>) -> PoolStatus {
     let status = pool.size();
     PoolStatus {
@@ -130,6 +131,7 @@ pub fn pool_status(pool: &Pool<MySql>) -> PoolStatus {
 }
 
 /// 连接池状态
+#[allow(dead_code)] // TODO: 预留连接池状态结构体，与 pool_status 配合用于监控面板
 #[derive(Debug, Clone)]
 pub struct PoolStatus {
     pub total: u32,
@@ -142,6 +144,7 @@ pub struct PoolStatus {
 // ============================================================================
 
 /// 批量值类型（支持参数化绑定）
+#[allow(dead_code)] // TODO: 预留批量插入参数化类型，后续可能用于批量数据导入功能
 #[derive(Clone, Debug)]
 pub enum BatchValue {
     Null,
@@ -210,6 +213,7 @@ impl From<bool> for BatchValue {
 ///     query.execute(&pool).await?;
 /// }
 /// ```
+#[allow(dead_code)] // TODO: 预留安全批量插入器，后续可能用于数据导入/迁移功能
 pub struct BatchInserterSafe<'a> {
     table: &'a str,
     columns: Vec<&'a str>,
@@ -218,6 +222,7 @@ pub struct BatchInserterSafe<'a> {
     total_rows: usize,
 }
 
+#[allow(dead_code)] // TODO: 预留安全批量插入器方法实现，当前未在业务中调用
 impl<'a> BatchInserterSafe<'a> {
     /// 创建新的批量插入器
     pub fn new(table: &'a str, columns: Vec<&'a str>, batch_size: usize) -> Self {
@@ -295,6 +300,7 @@ impl<'a> BatchInserterSafe<'a> {
 ///
 /// 注意：此版本使用字符串拼接，仅用于受信任的数据。
 /// 对于用户输入，请使用 BatchInserterSafe。
+#[allow(dead_code)] // TODO: 预留批量插入器（字符串版本），保持向后兼容
 pub struct BatchInserter<'a> {
     table: &'a str,
     columns: Vec<&'a str>,
@@ -303,6 +309,7 @@ pub struct BatchInserter<'a> {
     total_rows: usize,
 }
 
+#[allow(dead_code)] // TODO: 预留批量插入器方法实现，当前仅用于单元测试
 impl<'a> BatchInserter<'a> {
     /// 创建新的批量插入器
     pub fn new(table: &'a str, columns: Vec<&'a str>, batch_size: usize) -> Self {

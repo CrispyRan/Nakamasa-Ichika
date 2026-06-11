@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 use crate::config;
 use crate::config::RedisConfig;
@@ -74,6 +73,7 @@ pub struct RedisUtil {
     prefix: String,
 }
 
+#[allow(dead_code)] // 保留：Redis 工具方法（部分暂未直接调用）
 impl RedisUtil {
     pub fn new(prefix: &str) -> Self {
         RedisUtil {

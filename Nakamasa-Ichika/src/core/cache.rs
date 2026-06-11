@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! 缓存模块
 //!
@@ -19,6 +18,8 @@ use tokio::sync::RwLock;
 
 /// 简单内存缓存
 /// 适用于不需要分布式缓存的场景
+#[allow(dead_code)]
+// 保留：缓存基础设施，可在需要时使用
 pub struct SimpleCache<K, V>
 where
     K: Hash + Eq + Clone + Send + Sync + 'static,
@@ -29,6 +30,8 @@ where
     max_size: usize,
 }
 
+#[allow(dead_code)]
+// 保留：缓存基础设施，可在需要时使用
 impl<K, V> SimpleCache<K, V>
 where
     K: Hash + Eq + Clone + Send + Sync + 'static,
@@ -112,6 +115,8 @@ where
 // ============================================================================
 
 /// 简单的 Redis SET 操作
+#[allow(dead_code)]
+// 保留：缓存基础设施，可在需要时使用
 #[inline]
 pub async fn redis_set(
     pool: &deadpool_redis::Pool,
@@ -133,6 +138,8 @@ pub async fn redis_set(
 }
 
 /// 简单的 Redis GET 操作
+#[allow(dead_code)]
+// 保留：缓存基础设施，可在需要时使用
 #[inline]
 pub async fn redis_get(
     pool: &deadpool_redis::Pool,
@@ -150,6 +157,8 @@ pub async fn redis_get(
 // ============================================================================
 
 /// 多级缓存系统
+#[allow(dead_code)]
+// 保留：缓存基础设施，可在需要时使用
 pub struct MultiCache<K, V>
 where
     K: Hash + Eq + ToString + Clone + Send + Sync + 'static,
@@ -160,6 +169,8 @@ where
     prefix: String,
 }
 
+#[allow(dead_code)]
+// 保留：缓存基础设施，可在需要时使用
 impl<K, V> MultiCache<K, V>
 where
     K: Hash + Eq + ToString + Clone + Send + Sync + 'static,

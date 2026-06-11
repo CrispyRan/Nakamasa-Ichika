@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 //! 零拷贝和高性能字符串处理模块
 //!
 //! 提供高效的字符串操作，减少内存分配和拷贝
@@ -12,10 +10,12 @@ use std::borrow::Cow;
 // ============================================================================
 
 /// 高性能字符串包装器
+#[allow(dead_code)] // 保留：零拷贝字符串包装工具
 pub struct OptimizedString {
     inner: Cow<'static, str>,
 }
 
+#[allow(dead_code)] // 保留：零拷贝工具函数
 impl OptimizedString {
     /// 创建静态字符串（零分配）
     #[inline]
@@ -50,12 +50,14 @@ impl OptimizedString {
     }
 }
 
+#[allow(dead_code)] // 保留：零拷贝工具函数
 impl std::fmt::Display for OptimizedString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.inner)
     }
 }
 
+#[allow(dead_code)] // 保留：零拷贝工具函数
 impl std::fmt::Debug for OptimizedString {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "OptimizedString({:?})", self.inner)
@@ -67,10 +69,12 @@ impl std::fmt::Debug for OptimizedString {
 // ============================================================================
 
 /// 数据库字段零拷贝处理
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub struct DbField<'a> {
     data: Cow<'a, [u8]>,
 }
 
+#[allow(dead_code)] // 保留：零拷贝工具函数
 impl<'a> DbField<'a> {
     #[inline]
     pub fn new_borrowed(data: &'a [u8]) -> Self {
@@ -132,12 +136,14 @@ impl<'a> DbField<'a> {
 
 /// JSON 零拷贝解析
 #[inline]
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub fn parse_json_borrowed(json: &str) -> Result<Value, serde_json::Error> {
     serde_json::from_str(json)
 }
 
 /// JSON 高效序列化
 #[inline]
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub fn stringify_json_optimized(value: &Value) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "{}".to_string())
 }
@@ -148,6 +154,7 @@ pub fn stringify_json_optimized(value: &Value) -> String {
 
 /// 优化 API 路径处理
 #[inline]
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub fn optimize_api_path(path: &str) -> Cow<'_, str> {
     if path.starts_with("/api/") {
         Cow::Borrowed(path)
@@ -161,6 +168,7 @@ pub struct JsonValueWrapper<'a> {
     value: Cow<'a, Value>,
 }
 
+#[allow(dead_code)] // 保留：零拷贝工具函数
 impl<'a> JsonValueWrapper<'a> {
     #[inline]
     pub fn new_borrowed(value: &'a Value) -> Self {
@@ -193,6 +201,7 @@ impl<'a> JsonValueWrapper<'a> {
 
 /// 高效处理字节数据
 #[inline]
+#[allow(dead_code)] // 保留：高效字节数据处理工具函数
 pub fn process_bytes_efficiently<'a>(data: &'a [u8]) -> Cow<'a, [u8]> {
     if data.len() > 1024 {
         Cow::Owned(data.to_vec())
@@ -203,6 +212,7 @@ pub fn process_bytes_efficiently<'a>(data: &'a [u8]) -> Cow<'a, [u8]> {
 
 /// 高效处理字符串切片
 #[inline]
+#[allow(dead_code)] // 保留：高效字符串切片处理工具函数
 pub fn optimize_string_slice<'a>(input: &'a str) -> Cow<'a, str> {
     if input.len() > 128 {
         Cow::Owned(input.to_lowercase())
@@ -221,6 +231,7 @@ pub struct StringBuilder {
     buffer: String,
 }
 
+#[allow(dead_code)] // 保留：零拷贝工具函数
 impl StringBuilder {
     /// 创建新的构建器，预分配指定容量
     #[inline]
@@ -317,12 +328,14 @@ impl StringBuilder {
     }
 }
 
+#[allow(dead_code)] // 保留：零拷贝工具函数
 impl Default for StringBuilder {
     fn default() -> Self {
         Self::new()
     }
 }
 
+#[allow(dead_code)] // 保留：零拷贝工具函数
 impl std::fmt::Write for StringBuilder {
     fn write_str(&mut self, s: &str) -> std::fmt::Result {
         self.buffer.push_str(s);
@@ -353,18 +366,21 @@ macro_rules! fast_format {
 
 /// 快速构建 Redis key
 #[inline]
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub fn redis_key(prefix: &str, key: &str) -> String {
     StringBuilder::build_redis_key(prefix, key)
 }
 
 /// 快速构建 token key
 #[inline]
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub fn token_key(prefix: &str, token: &str) -> String {
     StringBuilder::build_redis_key(prefix, token)
 }
 
 /// 快速构建 logon key
 #[inline]
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub fn logon_key(prefix: &str, appid: u64, uid: i64, udid_hash: &str) -> String {
     let mut sb = StringBuilder::with_capacity(64);
     sb.append(prefix)
@@ -378,12 +394,14 @@ pub fn logon_key(prefix: &str, appid: u64, uid: i64, udid_hash: &str) -> String 
 
 /// 快速构建 fail_ip key
 #[inline]
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub fn fail_ip_key(ip_hash: &str) -> String {
     StringBuilder::build_prefixed_key("fail_ip_", ip_hash, "")
 }
 
 /// 快速构建 fail_ip_num key  
 #[inline]
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub fn fail_ip_num_key(ip_hash: &str) -> String {
     StringBuilder::build_prefixed_key("fail_ip_", ip_hash, "_num")
 }
@@ -396,6 +414,7 @@ use std::collections::HashSet;
 use std::sync::LazyLock;
 
 /// 常用字符串池
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub static COMMON_STRINGS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
     let mut set = HashSet::new();
     set.insert("success");
@@ -412,6 +431,7 @@ pub static COMMON_STRINGS: LazyLock<HashSet<&'static str>> = LazyLock::new(|| {
 
 /// 检查是否为常用字符串
 #[inline]
+#[allow(dead_code)] // 保留：零拷贝工具函数
 pub fn is_common_string(s: &str) -> bool {
     COMMON_STRINGS.contains(s)
 }

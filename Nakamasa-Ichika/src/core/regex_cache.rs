@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! 预编译正则表达式模块
 //! 避免运行时重复编译正则表达式，提升性能
@@ -25,15 +24,6 @@ pub static XML_PLAIN_REGEX: LazyLock<Regex> = LazyLock::new(|| {
 pub static SN_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[a-zA-Z0-9_\-]+$").expect("Invalid SN regex"));
 
-/// 手机号验证正则（中国大陆）
-pub static PHONE_REGEX: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^1[3-9]\d{9}$").expect("Invalid phone regex"));
-
-/// 邮箱验证正则
-pub static EMAIL_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$").expect("Invalid email regex")
-});
-
 /// 使用预编译正则解析 XML 到 JSON
 /// 性能优化：避免每次调用都编译正则
 pub fn xml_to_json(xml: &str) -> serde_json::Value {
@@ -59,27 +49,17 @@ pub fn xml_to_json(xml: &str) -> serde_json::Value {
     serde_json::Value::Object(result)
 }
 
-/// 验证 SN 设备号格式
+/// 验证 SN 设备号格式（外部未直接使用，通过 SN_REGEX 在 blocklist.rs 中使用）
+#[allow(dead_code)]
 #[inline]
 pub fn is_valid_sn(sn: &str) -> bool {
     !sn.is_empty() && SN_REGEX.is_match(sn)
 }
 
-/// 验证手机号格式
-#[inline]
-pub fn is_valid_phone(phone: &str) -> bool {
-    PHONE_REGEX.is_match(phone)
-}
-
-/// 验证邮箱格式
-#[inline]
-pub fn is_valid_email(email: &str) -> bool {
-    EMAIL_REGEX.is_match(email)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::utils::validator::Validator;
 
     #[test]
     fn test_xml_cdata_regex() {
@@ -98,15 +78,17 @@ mod tests {
 
     #[test]
     fn test_phone_regex() {
-        assert!(is_valid_phone("13812345678"));
-        assert!(!is_valid_phone("12345678901"));
-        assert!(!is_valid_phone("1381234567"));
+        // 使用 validator::Validator 验证（regex 定义在 validator.rs 中）
+        assert!(Validator::new().phone("", "13812345678").validate().is_ok());
+        assert!(!Validator::new().phone("", "12345678901").validate().is_ok());
+        assert!(!Validator::new().phone("", "1381234567").validate().is_ok());
     }
 
     #[test]
     fn test_email_regex() {
-        assert!(is_valid_email("test@example.com"));
-        assert!(is_valid_email("test.name@sub.example.co.uk"));
-        assert!(!is_valid_email("invalid.email"));
+        // 使用 validator::Validator 验证（regex 定义在 validator.rs 中）
+        assert!(Validator::new().email("", "test@example.com").validate().is_ok());
+        assert!(Validator::new().email("", "test.name@sub.example.co.uk").validate().is_ok());
+        assert!(!Validator::new().email("", "invalid.email").validate().is_ok());
     }
 }

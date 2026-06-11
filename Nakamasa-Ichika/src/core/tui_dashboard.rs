@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! # TUI 仪表盘模块
 //!
@@ -67,6 +66,7 @@ impl LogBuffer {
     }
 }
 
+#[allow(dead_code)] // 保留：TUI日志写入器
 pub struct LogWriter {
     pub buffer: Arc<LogBuffer>,
 }
@@ -139,6 +139,7 @@ pub fn collect_resource_usage() -> ResourceUsage {
     }
 }
 
+#[allow(dead_code)] // 保留：TUI数据目录获取
 fn get_data_dir() -> &'static Path { Path::new("/data") }
 fn read_first_line(path: &str) -> io::Result<String> {
     let c = fs::read_to_string(path)?;
@@ -256,6 +257,7 @@ pub struct TuiApp {
     pub cpu_history: Vec<f64>,
     pub terminal_height: u16,
     pub terminal_width: u16,
+    #[allow(dead_code)] // 保留：TUI仪表盘可展开CPU图表状态
     pub cpu_chart_expanded: bool,
 }
 
@@ -571,6 +573,7 @@ pub struct TuiGuard {
     handle: Option<std::thread::JoinHandle<()>>,
 }
 
+#[allow(dead_code)] // 保留：TuiGuard 空实例用于占位
 impl TuiGuard {
     pub fn start(log_buffer: Arc<LogBuffer>) -> Self {
         let running = Arc::new(AtomicBool::new(true));

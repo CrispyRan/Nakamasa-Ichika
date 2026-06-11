@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! # 应用状态模块 (Application State Module)
 //!
@@ -299,6 +298,9 @@ impl CachedTokenData {
 // AppState 实现
 // ============================================================================
 
+// 以下方法（get_redis、invalidate_user_all、invalidate_token_cache、invalidate_token_cache_batch）
+// 当前未被外部代码直接调用，但作为公开 API 保留供后续使用，故允许 dead_code 警告
+#[allow(dead_code)]
 impl AppState {
     /// 创建新的应用状态实例
     ///

@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! JSON 高性能处理模块
 //!
@@ -11,6 +10,7 @@ use std::borrow::Cow;
 /// 高性能JSON处理工具
 pub struct FastJson;
 
+#[allow(dead_code)] // 保留：FastJson 工具方法（部分暂未被调用）
 impl FastJson {
     /// 零拷贝解析（借用输入字符串）
     #[inline]
@@ -127,6 +127,7 @@ impl FastJson {
 // 优化的 JSON 响应
 // ============================================================================
 
+#[allow(dead_code)]
 /// 优化的 JSON 响应包装器
 pub struct JsonResponse<T>(pub T);
 
@@ -143,6 +144,7 @@ impl<T: serde::Serialize> Scribe for JsonResponse<T> {
     }
 }
 
+#[allow(dead_code)]
 /// 创建 JSON 响应（最简单可靠）
 #[inline]
 pub fn json_response<T: serde::Serialize>(data: T) -> Response {
@@ -157,6 +159,7 @@ pub fn json_response<T: serde::Serialize>(data: T) -> Response {
     res
 }
 
+#[allow(dead_code)]
 /// 成功响应
 #[inline]
 pub fn success_response<T: serde::Serialize>(data: T) -> Response {
@@ -167,6 +170,7 @@ pub fn success_response<T: serde::Serialize>(data: T) -> Response {
     }))
 }
 
+#[allow(dead_code)]
 /// 错误响应
 #[inline]
 pub fn error_response(message: &str, code: i32) -> Response {
@@ -177,6 +181,7 @@ pub fn error_response(message: &str, code: i32) -> Response {
     }))
 }
 
+#[allow(dead_code)]
 /// 静态错误响应（消息为静态字符串）
 #[inline]
 pub fn error_response_static(message: &'static str, code: i32) -> Response {
@@ -213,9 +218,11 @@ macro_rules! json_error_static {
 // 流式 JSON 处理（用于大文件）
 // ============================================================================
 
+#[allow(dead_code)]
 /// 流式 JSON 处理器
 pub struct StreamingJson;
 
+#[allow(dead_code)]
 impl StreamingJson {
     /// 流式处理大 JSON 文件
     pub async fn process_large_json<F, R>(

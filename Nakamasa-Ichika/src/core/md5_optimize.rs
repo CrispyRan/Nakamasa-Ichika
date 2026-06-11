@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 
 //! MD5 优化模块
 //! 使用栈上数组替代 format!("{:x}") 避免堆分配
@@ -7,6 +6,9 @@
 /// 预分配的MD5十六进制字符表
 const HEX_CHARS: [u8; 16] = *b"0123456789abcdef";
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 /// 预分配的十六进制查表（用于快速转换）
 /// 输入：低4位 -> 输出：ASCII字符
 #[inline(always)]
@@ -14,6 +16,9 @@ const fn hex_char_low(nibble: u8) -> u8 {
     HEX_CHARS[nibble as usize]
 }
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 /// 输入：高4位 -> 输出：ASCII字符
 #[inline(always)]
 const fn hex_char_high(nibble: u8) -> u8 {
@@ -83,12 +88,18 @@ pub fn md5_to_str(hex: &[u8; 32]) -> &str {
     unsafe { std::str::from_utf8_unchecked(hex) }
 }
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 /// 安全版本的 md5_to_str
 #[inline]
 pub fn md5_to_str_safe(hex: &[u8; 32]) -> Result<&str, std::str::Utf8Error> {
     std::str::from_utf8(hex)
 }
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 /// 批量计算 MD5（用于批量操作优化）
 /// 使用预分配缓冲区减少内存分配
 pub fn md5_hex_batch<'a, I>(data_iter: I) -> Vec<[u8; 32]>
@@ -98,12 +109,18 @@ where
     data_iter.map(md5_hex).collect()
 }
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 /// 预分配缓冲区版本的 MD5 计算
 /// 用于处理大量数据时避免重复分配
 pub struct Md5Buffer {
     buffer: [u8; 32],
 }
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 impl Md5Buffer {
     pub fn new() -> Self {
         Self { buffer: [0u8; 32] }
@@ -183,12 +200,18 @@ impl Default for Md5Buffer {
 // SIMD 风格批量处理
 // ============================================================================
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 /// 批量 MD5 计算器 - 针对大量小数据优化
 /// 使用线程本地缓冲区避免重复分配
 pub struct BatchMd5 {
     buffers: Vec<[u8; 32]>,
 }
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 impl BatchMd5 {
     /// 创建新的批量计算器，预分配指定数量的缓冲区
     pub fn with_capacity(capacity: usize) -> Self {
@@ -228,6 +251,9 @@ impl BatchMd5 {
 // 便捷函数 - 用于快速迁移现有代码
 // ============================================================================
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 /// 快速 MD5 字符串 - 用于替代 format!("{:x}", md5::compute(...))
 /// 这个函数会分配一个新的 String
 #[inline]
@@ -262,6 +288,9 @@ pub fn md5_concat_3(a: &str, b: &str, c: &str) -> String {
     md5_hex_string(buffer.as_bytes())
 }
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 /// 快速 MD5 - 从四个部分拼接后计算
 #[inline]
 pub fn md5_concat_4(a: &str, b: &str, c: &str, d: &str) -> String {
@@ -273,6 +302,9 @@ pub fn md5_concat_4(a: &str, b: &str, c: &str, d: &str) -> String {
     md5_hex_string(buffer.as_bytes())
 }
 
+/// Optimization building block - available for future MD5 batch operations
+#[allow(dead_code)]
+// 保留：MD5批量操作优化基础设施
 /// 快速 MD5 - 从整数和字符串拼接后计算
 /// 用于生成 token 等场景
 #[inline]
