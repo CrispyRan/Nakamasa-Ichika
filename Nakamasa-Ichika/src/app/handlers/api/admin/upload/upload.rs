@@ -172,20 +172,9 @@ pub async fn img(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             data
         }
         Err(e) => {
-            let err_str = format!("{:?}", e);
-            tracing::warn!("解析表单数据失败: {}", err_str);
+            tracing::warn!("解析表单数据失败: {}", e);
 
-            // 提供更友好的错误信息
-            let user_msg = if err_str.contains("stream") {
-                format!(
-                    "文件上传失败：可能是文件过大（最大支持{}MB）或网络中断",
-                    MAX_FILE_SIZE / 1024 / 1024
-                )
-            } else if err_str.contains("size") || err_str.contains("limit") {
-                format!("文件大小超过限制（最大{}MB）", MAX_FILE_SIZE / 1024 / 1024)
-            } else {
-                format!("解析表单数据失败: {}", e)
-            };
+            let user_msg = "文件上传失败，请检查文件大小和格式".to_string();
 
             res.render(Json(ApiResponse::<()>::error(user_msg, 3)));
             return;
@@ -284,10 +273,7 @@ pub async fn img(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
         Err(e) => {
             tracing::error!("读取文件失败: {:?}", e);
-            res.render(Json(ApiResponse::<()>::error(
-                format!("读取文件失败: {}", e),
-                20,
-            )));
+            res.render(Json(ApiResponse::<()>::error("读取文件失败", 20)));
             return;
         }
     };
@@ -328,10 +314,7 @@ pub async fn img(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     tracing::debug!("保存文件到: {:?}", canonical_file_path);
     if let Err(e) = fs::write(&canonical_file_path, &file_data) {
         tracing::error!("保存文件失败: {:?}", e);
-        res.render(Json(ApiResponse::<()>::error(
-            format!("保存文件失败: {}", e),
-            20,
-        )));
+        res.render(Json(ApiResponse::<()>::error("保存文件失败", 20)));
         return;
     }
 
@@ -374,19 +357,9 @@ pub async fn index(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let form_data = match req.form_data().await {
         Ok(data) => data,
         Err(e) => {
-            let err_str = format!("{:?}", e);
+            tracing::warn!("解析表单数据失败: {}", e);
 
-            // 提供更友好的错误信息
-            let user_msg = if err_str.contains("stream") {
-                format!(
-                    "文件上传失败：可能是文件过大（最大支持{}MB）或网络中断",
-                    MAX_FILE_SIZE / 1024 / 1024
-                )
-            } else if err_str.contains("size") || err_str.contains("limit") {
-                format!("文件大小超过限制（最大{}MB）", MAX_FILE_SIZE / 1024 / 1024)
-            } else {
-                format!("解析表单数据失败: {}", e)
-            };
+            let user_msg = "文件上传失败，请检查文件大小和格式".to_string();
 
             res.render(Json(ApiResponse::<()>::error(user_msg, 3)));
             return;
@@ -441,10 +414,8 @@ pub async fn index(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let file_data = match fs::read(file.path()) {
         Ok(data) => data,
         Err(e) => {
-            res.render(Json(ApiResponse::<()>::error(
-                format!("读取文件失败: {}", e),
-                20,
-            )));
+            tracing::error!("读取文件失败: {:?}", e);
+            res.render(Json(ApiResponse::<()>::error("读取文件失败", 20)));
             return;
         }
     };
@@ -477,10 +448,8 @@ pub async fn index(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     // 保存文件
     if let Err(e) = fs::write(&canonical_file_path, &file_data) {
-        res.render(Json(ApiResponse::<()>::error(
-            format!("保存文件失败: {}", e),
-            20,
-        )));
+        tracing::error!("保存文件失败: {:?}", e);
+        res.render(Json(ApiResponse::<()>::error("保存文件失败", 20)));
         return;
     }
 

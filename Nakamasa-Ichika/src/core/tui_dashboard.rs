@@ -9,10 +9,10 @@ use crossterm::execute;
 use crossterm::terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen};
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Margin, Rect},
+    layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span, Text},
-    widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Wrap},
+    widgets::{Block, Borders, List, ListItem, Paragraph},
     Frame, Terminal,
 };
 use std::{
@@ -88,6 +88,7 @@ impl Clone for LogWriter {
 // ============================================================================
 
 #[derive(Clone, Debug)]
+#[allow(dead_code)]
 pub struct SystemInfo {
     pub os: String, pub kernel: String, pub hostname: String,
     pub cpu_model: String, pub cpu_cores: usize,
@@ -331,33 +332,37 @@ impl TuiApp {
 }
 
 // ============================================================================
-// 渲染函数 — 樱花粉主题 + 动态布局
+// 渲染函数 — OpenCode 风格樱花粉终端
 // ============================================================================
 
-/// 带樱花的标题装饰
-fn sa_title(s: &str) -> String { format!(" ❀ {} ❀ ", s) }
-
-/// 渲染整个界面
+/// 渲染整个界面 — OpenCode 风格：Logo 横幅 + 状态栏 + 日志区 + 命令栏
 pub fn render(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut TuiApp) -> io::Result<()> {
     terminal.draw(|f| {
         let area = f.area();
         app.terminal_height = area.height;
         app.terminal_width = area.width;
 
-        // 动态布局：底部命令栏固定 3 行，剩余空间分配给顶栏+日志
-        let bar_h = 3u16.min(area.height / 5).max(2);
-        let flex_h = area.height.saturating_sub(bar_h);
+        let h = area.height;
+        let bar_h = 3u16.min(h / 5).max(2);
 
-        // 小屏适配：<=15行时顶栏高度自适应
-        let top_h = if flex_h <= 18 { (flex_h / 2).max(8).min(flex_h.saturating_sub(3)) } else { 14 };
+        // Logo 横幅 + 分隔 + 状态栏 + 分隔 + 日志 + 命令栏
+        let logo_h = 3u16.min(h / 8).max(2);
+        let status_h = 3u16.min(h / 8).max(2);
 
-        let main_chunks = Layout::default()
+        let chunks = Layout::default()
             .direction(Direction::Vertical)
-            .constraints([Constraint::Length(top_h), Constraint::Min(2), Constraint::Length(bar_h)])
+            .constraints([
+                Constraint::Length(logo_h),           // Logo 横幅
+                Constraint::Length(1),                // 分隔线
+                Constraint::Length(status_h),         // 状态栏
+                Constraint::Length(1),                // 分隔线
+                Constraint::Min(1),                   // 日志区域
+                Constraint::Length(bar_h),            // 命令栏
+            ])
             .split(area);
 
-        // 消息提示
-        if !app.messages.is_empty() {
+        // 消息提示（浮动在日志区顶部）
+        if !app.messages.is_empty() && chunks[4].height > 2 {
             let msg = app.messages.iter().map(|(m, _)| m.as_str()).collect::<Vec<&str>>().join(" | ");
             let mc = app.messages.last().map(|(_, c)| *c).unwrap_or(PINK_PRIMARY);
             let mp = Paragraph::new(Line::from(Span::styled(msg, Style::default().fg(mc))))
@@ -365,166 +370,116 @@ pub fn render(terminal: &mut Terminal<CrosstermBackend<io::Stdout>>, app: &mut T
             let ma = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([Constraint::Length(1), Constraint::Min(0)])
-                .split(main_chunks[1])[0];
+                .split(chunks[4])[0];
             f.render_widget(mp, ma);
         }
 
-        // 顶栏：根据屏幕宽度决定左右比例
-        let top_chunks = if area.width >= 60 {
-            Layout::default()
-                .direction(Direction::Horizontal)
-                .constraints([Constraint::Ratio(2, 5), Constraint::Ratio(3, 5)])
-                .split(main_chunks[0])
-        } else {
-            // 极窄屏：上下排列
-            Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Length(top_h / 2), Constraint::Length(top_h.saturating_sub(top_h / 2))])
-                .split(main_chunks[0])
-        };
-
-        render_system_info(f, top_chunks[0], app);
-        render_right_panel(f, top_chunks[1], app);
-        render_log_panel(f, main_chunks[1], app);
-        render_command_bar(f, main_chunks[2], app);
+        render_logo_banner(f, chunks[0], app);
+        render_separator(f, chunks[1]);
+        render_status_bar(f, chunks[2], app);
+        render_separator(f, chunks[3]);
+        render_log_panel(f, chunks[4], app);
+        render_command_bar(f, chunks[5], app);
     })?;
     Ok(())
 }
 
-/// 左框：系统信息
-fn render_system_info(f: &mut Frame, area: Rect, app: &TuiApp) {
+/// OpenCode 风格 Logo 横幅 — 樱花粉 Nakamasa-Ichika 品牌区
+fn render_logo_banner(f: &mut Frame, area: Rect, app: &TuiApp) {
     let si = &app.system_info;
-    let os_kernel = format!(" {} {}", si.os, si.kernel);
-    let lines = vec![
-        Line::from(vec![
-            Span::styled("OS      ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
-            Span::raw(&os_kernel),
-        ]),
-        Line::from(vec![
-            Span::styled("架构    ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
-            Span::raw(&si.architecture),
-        ]),
-        Line::from(vec![
-            Span::styled("主机    ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
-            Span::raw(&si.hostname),
-        ]),
-        Line::from(vec![
-            Span::styled("CPU     ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
-            Span::raw(&si.cpu_model),
-        ]),
-        Line::from(vec![
-            Span::styled("核心    ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("{} 核", si.cpu_cores), Style::default().fg(GOLD_WARM)),
-        ]),
-        Line::from(vec![
-            Span::styled("Rust    ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
-            Span::raw(&si.rust_version),
-        ]),
-        Line::from(vec![
-            Span::styled("版本    ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
-            Span::styled(format!("v{}", si.app_version), Style::default().fg(GOLD_WARM)),
-        ]),
-    ];
 
+    // Logo行：Nakamasa-Ichika 品牌 + 装饰
+    let logo_line = Line::from(vec![
+        Span::styled("  ❀ ", Style::default().fg(PINK_SOFT)),
+        Span::styled("Nakamasa-Ichika", Style::default().fg(PINK_ACCENT).add_modifier(Modifier::BOLD)),
+        Span::styled(" ❀  ", Style::default().fg(PINK_SOFT)),
+        Span::styled(format!("v{}", si.app_version), Style::default().fg(GOLD_WARM)),
+    ]);
+
+    // 状态行：构建 + 架构 + 主机名（类似 OpenCode 的 "build | model | path"）
+    let info_line = Line::from(vec![
+        Span::styled("  build ", Style::default().fg(PINK_DEEP)),
+        Span::styled("| ", Style::default().fg(PINK_SOFT)),
+        Span::styled(&si.rust_version, Style::default().fg(PINK_PRIMARY)),
+        Span::styled(" | ", Style::default().fg(PINK_SOFT)),
+        Span::styled(&si.hostname, Style::default().fg(PINK_HOT)),
+    ]);
+
+    let lines = vec![logo_line, info_line];
     let para = Paragraph::new(Text::from(lines))
         .block(Block::default()
             .borders(Borders::ALL)
             .border_style(Style::default().fg(PINK_PRIMARY))
-            .title(sa_title("系统信息"))
-            .title_style(Style::default().fg(PINK_ACCENT).add_modifier(Modifier::BOLD)))
-        .wrap(Wrap { trim: false });
+            .title(" 🐱 樱花猫娘 ")
+            .title_style(Style::default().fg(PINK_ACCENT).add_modifier(Modifier::BOLD)));
     f.render_widget(para, area);
 }
 
-/// 右面板：CPU 走势 + 资源仪表 + 进程信息
-fn render_right_panel(f: &mut Frame, area: Rect, app: &TuiApp) {
+/// 分隔线
+fn render_separator(f: &mut Frame, area: Rect) {
+    let sep = Line::from(Span::styled(
+        "─".repeat(area.width as usize),
+        Style::default().fg(PINK_SOFT),
+    ));
+    f.render_widget(Paragraph::new(Text::from(vec![sep])), area);
+}
+
+/// 紧凑状态栏 — CPU 走势 + 内存 + 磁盘 + 进程信息
+fn render_status_bar(f: &mut Frame, area: Rect, app: &TuiApp) {
     let r = &app.resource;
-    let frm_h = area.height;
 
-    // 动态切分：足够高时展示 CPU 走势图，否则只显示仪表
-    let constraints = if frm_h >= 15 {
-        vec![Constraint::Length(4), Constraint::Length(4), Constraint::Length(4), Constraint::Min(2)]
-    } else if frm_h >= 10 {
-        vec![Constraint::Length(3), Constraint::Length(3), Constraint::Min(2)]
-    } else {
-        vec![Constraint::Length(3), Constraint::Min(1)]
-    };
+    // CPU 行：走势图 + 百分比
+    let spark_w = (area.width as usize).saturating_sub(20).min(40).max(4);
+    let spark = app.render_cpu_sparkline(spark_w);
 
-    let chunks = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints(constraints)
-        .split(area.inner(Margin { vertical: 1, horizontal: 1 }));
+    let cpu_color = if r.cpu_percent > 80.0 { Color::Red } else { PINK_ACCENT };
+    let cpu_line = Line::from(vec![
+        Span::styled(" CPU ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
+        Span::styled(format!("{:5.1}% ", r.cpu_percent), Style::default().fg(cpu_color)),
+        Span::styled(spark, Style::default().fg(PINK_ACCENT)),
+    ]);
 
-    let mut idx = 0;
+    // 内存 + 磁盘 + 进程一行
+    let mem_color = if r.memory_percent > 80.0 { Color::Red } else { PINK_DEEP };
+    let disk_color = if r.disk_percent > 80.0 { Color::Red } else { PINK_DEEP };
 
-    // CPU 走势图（唯一实时刷新的线形图）
-    if frm_h >= 10 {
-        let spark_w = (chunks[idx].width as usize).saturating_sub(2);
-        let spark = app.render_cpu_sparkline(spark_w);
-        let label = format!("CPU: {:.1}%  ↓趋势", r.cpu_percent);
-        let cpu_chart = Paragraph::new(Text::from(vec![
-            Line::from(Span::styled(&label, Style::default().fg(PINK_DEEP))),
-            Line::from(Span::styled(spark, Style::default().fg(PINK_ACCENT))),
-        ]))
+    let mem_str = format!("{} {:.0}%/{}",
+        TuiApp::format_mb(r.memory_used_mb), r.memory_percent,
+        TuiApp::format_mb(r.memory_total_mb));
+    let disk_str = format!("{:>3.0}% {:>3.0}/{:>3.0}GB",
+        r.disk_percent, r.disk_used_mb as f64 / 1024.0, r.disk_total_mb as f64 / 1024.0);
+
+    let stats_line = Line::from(vec![
+        Span::styled(" MEM ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
+        Span::styled(&mem_str, Style::default().fg(mem_color)),
+        Span::styled("  DISK ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
+        Span::styled(&disk_str, Style::default().fg(disk_color)),
+    ]);
+
+    // PID + Uptime + Logs 行
+    let pid_line = Line::from(vec![
+        Span::styled(" PID ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
+        Span::styled(format!("{}", r.pid), Style::default().fg(GOLD_WARM)),
+        Span::styled("  Uptime ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
+        Span::styled(app.uptime_str(), Style::default().fg(PINK_PRIMARY)),
+        Span::styled("  Logs ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
+        Span::styled(format!("{}", app.log_buffer.len()), Style::default().fg(GOLD_WARM)),
+        Span::styled("  刷新 ", Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)),
+        Span::styled("每 2s", Style::default().fg(PINK_PRIMARY)),
+    ]);
+
+    let lines = vec![cpu_line, stats_line, pid_line];
+    let para = Paragraph::new(Text::from(lines))
         .block(Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(PINK_PRIMARY))
-            .title(" CPU 走势 ")
-            .title_style(Style::default().fg(PINK_HOT).add_modifier(Modifier::BOLD)));
-        f.render_widget(cpu_chart, chunks[idx]);
-        idx += 1;
-    }
-
-    // 内存仪表
-    let mem_color = if r.memory_percent > 80.0 { Color::Red } else { PINK_DEEP };
-    let mem_label = format!("{}/{} ({:.1}%)",
-        TuiApp::format_mb(r.memory_used_mb), TuiApp::format_mb(r.memory_total_mb), r.memory_percent);
-    let mem_g = Gauge::default()
-        .block(Block::default().title(" 内存 ").borders(Borders::ALL)
-            .border_style(Style::default().fg(PINK_PRIMARY)))
-        .gauge_style(Style::default().fg(mem_color).bg(Color::Black))
-        .percent(r.memory_percent as u16)
-        .label(mem_label);
-    f.render_widget(mem_g, chunks[idx]);
-    idx += 1;
-
-    // 磁盘仪表
-    if idx < chunks.len() {
-        let disk_color = if r.disk_percent > 80.0 { Color::Red } else { PINK_DEEP };
-        let disk_label = format!("{:.1}/{:.1}GB ({:.1}%)",
-            r.disk_used_mb as f64 / 1024.0, r.disk_total_mb as f64 / 1024.0, r.disk_percent);
-        let disk_g = Gauge::default()
-            .block(Block::default().title(" 磁盘 ").borders(Borders::ALL)
-                .border_style(Style::default().fg(PINK_PRIMARY)))
-            .gauge_style(Style::default().fg(disk_color).bg(Color::Black))
-            .percent(r.disk_percent as u16)
-            .label(disk_label);
-        f.render_widget(disk_g, chunks[idx]);
-        idx += 1;
-    }
-
-    // 进程信息
-    if idx < chunks.len() {
-        let info = vec![
-            Line::from(vec![Span::styled("PID     ", Style::default().fg(PINK_HOT)),
-                Span::styled(format!("{}", r.pid), Style::default().fg(GOLD_WARM))]),
-            Line::from(vec![Span::styled("运行    ", Style::default().fg(PINK_HOT)),
-                Span::raw(app.uptime_str())]),
-            Line::from(vec![Span::styled("日志    ", Style::default().fg(PINK_HOT)),
-                Span::styled(format!("{}", app.log_buffer.len()), Style::default().fg(GOLD_WARM))]),
-            Line::from(vec![Span::styled("刷新    ", Style::default().fg(PINK_HOT)),
-                Span::raw("每 2s")]),
-        ];
-        let info_p = Paragraph::new(Text::from(info))
-            .block(Block::default().title(" 进程 ").borders(Borders::ALL)
-                .border_style(Style::default().fg(PINK_PRIMARY)));
-        f.render_widget(info_p, chunks[idx]);
-    }
+            .border_style(Style::default().fg(PINK_PRIMARY)));
+    f.render_widget(para, area);
 }
 
 /// 日志面板
 fn render_log_panel(f: &mut Frame, area: Rect, app: &mut TuiApp) {
-    let log_h = (area.height as usize).saturating_sub(if app.messages.is_empty() { 1 } else { 2 });
+    let msg_overhead = if app.messages.is_empty() { 1 } else { 2 };
+    let log_h = (area.height as usize).saturating_sub(msg_overhead);
     let logs = app.log_buffer.get_lines(log_h.max(1));
     let items: Vec<ListItem> = logs.iter().map(|line| {
         let style = if line.contains("ERROR") || line.contains("error") { Style::default().fg(Color::Red) }
@@ -535,7 +490,7 @@ fn render_log_panel(f: &mut Frame, area: Rect, app: &mut TuiApp) {
         ListItem::new(Line::from(Span::styled(line.clone(), style)))
     }).collect();
 
-    let scroll = if app.auto_scroll { "◇ 自动" } else { "◇ 手动↑↓" };
+    let scroll = if app.auto_scroll { "◇自动" } else { "◇手动↑↓" };
     let title = format!(" ❀ 日志 {} ❀ ", scroll);
     let list = List::new(items)
         .block(Block::default().borders(Borders::ALL)
@@ -545,21 +500,26 @@ fn render_log_panel(f: &mut Frame, area: Rect, app: &mut TuiApp) {
     f.render_widget(list, area);
 }
 
-/// 底部命令栏 — 点击进入命令模式
+/// 底部命令栏 — OpenCode 风格输入框
 fn render_command_bar(f: &mut Frame, area: Rect, app: &mut TuiApp) {
-    let text = match app.command_mode {
-        CommandMode::Normal => {
-            format!(" [Q]退 [R]刷 [F]滚动 [/]命令 | 📱点击终端打字 | {}",
-                chrono::Local::now().format("%H:%M:%S"))
-        }
-        CommandMode::Input => format!(" ⌨ 命令 > {} ▌", app.command_buffer),
+    let (text, color, title) = match app.command_mode {
+        CommandMode::Normal => (
+            format!(" [Q]退出 [R]刷新 [F]滚动 [/]命令 | {}",
+                chrono::Local::now().format("%H:%M:%S")),
+            PINK_PRIMARY,
+            " ⌨ 樱花命令 ",
+        ),
+        CommandMode::Input => (
+            format!(" > {} ▌", app.command_buffer),
+            GOLD_WARM,
+            " ✎ 输入命令 ",
+        ),
     };
-    let color = match app.command_mode { CommandMode::Normal => PINK_PRIMARY, CommandMode::Input => GOLD_WARM };
     let line = Line::from(Span::styled(text, Style::default().fg(color)));
     let bar = Paragraph::new(Text::from(vec![line]))
         .block(Block::default().borders(Borders::ALL)
             .border_style(Style::default().fg(PINK_PRIMARY))
-            .title(" 樱花命令 ")
+            .title(title)
             .title_style(Style::default().fg(PINK_ACCENT).add_modifier(Modifier::BOLD)));
     f.render_widget(bar, area);
 }

@@ -160,6 +160,16 @@ pub async fn get_info(req: &mut Request, depot: &mut Depot, res: &mut Response) 
 
     // 获取字段列表，如果为空则使用 * 查询所有字段
     let fields = get_req.field.unwrap_or_default();
+
+    // 默认查询（所有字段）时走通用缓存
+    if fields.is_empty() {
+        let cache_key = format!("app_info:{}", appid);
+        if let Some(cached) = app_state.generic_cache.get(&cache_key) {
+            res.render(Json(ApiResponse::success("成功", Some(cached))));
+            return;
+        }
+    }
+
     let field_str = match build_app_select_fields(&fields) {
         Ok(s) => s,
         Err(msg) => {
@@ -231,8 +241,15 @@ pub async fn get_info(req: &mut Request, depot: &mut Depot, res: &mut Response) 
 
             res.render(Json(ApiResponse::success(
                 "成功",
-                Some(serde_json::Value::Object(data)),
+                Some(serde_json::Value::Object(data.clone())),
             )));
+            // 默认查询时写入通用缓存
+            if fields.is_empty() {
+                app_state.generic_cache.set(
+                    format!("app_info:{}", appid),
+                    serde_json::Value::Object(data),
+                );
+            }
         }
         Ok(None) => {
             res.render(Json(ApiResponse::<()>::error("应用不存在", 201)));
@@ -893,6 +910,8 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             if r.rows_affected() > 0 {
                 // 失效应用配置缓存
                 app_state.invalidate_app_cache(appid);
+                // 失效应用信息通用缓存
+                app_state.invalidate_generic_cache(&format!("app_info:{}", appid));
 
                 res.render(Json(ApiResponse::success_msg("编辑成功")));
             } else {
@@ -995,6 +1014,9 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     if success {
         match tx.commit().await {
             Ok(_) => {
+                // 应用删除，清空相关缓存
+                app_state.invalidate_app_cache(del_req.id);
+                app_state.invalidate_generic_cache(&format!("app_info:{}", del_req.id));
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             }
             Err(e) => {

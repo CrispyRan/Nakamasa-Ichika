@@ -11,12 +11,39 @@ use chrono::Utc;
 use salvo::prelude::*;
 use sqlx::Row;
 use std::sync::Arc;
+use std::collections::HashMap;
+use std::sync::Mutex;
 
 use crate::app::plugins::pay::{
     AliPayPlugin, JiePayPlugin, NotifyVerifyResult, PayPalPayPlugin, PayPlugin, QqPayPlugin, WxPayPlugin,
 };
 use crate::core::AppState;
+use crate::core::middleware::get_client_ip;
 use crate::core::regex_cache::{XML_CDATA_REGEX, XML_PLAIN_REGEX};
+
+/// 简单内存速率限制器：IP -> (时间窗口起点, 计数)
+static NOTIFY_RATE_LIMITER: std::sync::LazyLock<Mutex<HashMap<String, (i64, u32)>>> =
+    std::sync::LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// 检查支付通知速率限制（同一IP每分钟最多10次通知）
+fn check_notify_rate_limit(ip: &str) -> bool {
+    let now = chrono::Utc::now().timestamp();
+    let mut limiter = NOTIFY_RATE_LIMITER.lock().unwrap();
+    if let Some(entry) = limiter.get_mut(ip) {
+        if now - entry.0 > 60 {
+            *entry = (now, 1);
+            true
+        } else if entry.1 >= 10 {
+            false
+        } else {
+            entry.1 += 1;
+            true
+        }
+    } else {
+        limiter.insert(ip.to_string(), (now, 1));
+        true
+    }
+}
 
 /// 创建支付插件实例
 fn create_plugin(pay_type: &str, config: &serde_json::Value) -> Result<Box<dyn PayPlugin>, String> {
@@ -397,6 +424,14 @@ async fn handle_notify_inner(
             }
         };
 
+    // 速率限制：同一IP每分钟最多10次通知
+    let client_ip = get_client_ip(req).to_string();
+    if !check_notify_rate_limit(&client_ip) {
+        tracing::warn!("支付通知速率限制触发: ip={}", client_ip);
+        res.render(Text::Plain("fail"));
+        return;
+    }
+
     // 获取订单号
     let order_no = match req.param::<String>("order_no") {
         Some(no) => no,
@@ -478,6 +513,8 @@ async fn handle_notify_inner(
 
     // 更新订单
     if update_order(db, &order, &notify_result, &app_type).await {
+        // 订单状态变更，失效统计面板缓存
+        app_state.invalidate_stats_cache(appid as u64);
         res.render(Text::Plain("success"));
     } else {
         res.render(Text::Plain("fail"));

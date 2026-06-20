@@ -215,7 +215,7 @@ impl<B: RedisBackend + 'static> CacheSyncBroadcaster<B> {
         }
     }
 
-    fn channel_name(&self, namespace: &str) -> String {
+    pub(crate) fn channel_name(&self, namespace: &str) -> String {
         format!("{}:{}", self.channel_prefix, namespace)
     }
 
@@ -309,15 +309,17 @@ impl<B: RedisBackend + 'static> CacheSyncBroadcaster<B> {
 }
 
 // ============================================================================
-// 订阅器（模拟实现）
+// 订阅器
 // ============================================================================
 
 /// 缓存同步订阅器
+///
+/// 通过 Redis Pub/Sub 接收其他节点的缓存失效事件并分发给注册的处理器
 pub struct CacheSyncSubscriber<B: RedisBackend + 'static> {
     backend: Arc<B>,
     broadcaster: Arc<CacheSyncBroadcaster<B>>,
     namespaces: Vec<String>,
-    running: std::sync::atomic::AtomicBool,
+    task_handle: parking_lot::Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl<B: RedisBackend + 'static> CacheSyncSubscriber<B> {
@@ -327,7 +329,7 @@ impl<B: RedisBackend + 'static> CacheSyncSubscriber<B> {
             backend,
             broadcaster,
             namespaces: Vec::new(),
-            running: std::sync::atomic::AtomicBool::new(false),
+            task_handle: parking_lot::Mutex::new(None),
         }
     }
 
@@ -336,23 +338,67 @@ impl<B: RedisBackend + 'static> CacheSyncSubscriber<B> {
         self.namespaces.push(namespace.to_string());
     }
 
-    /// 启动订阅（模拟）
-    pub async fn start(&self) {
-        self.running
-            .store(true, std::sync::atomic::Ordering::Release);
-        // 实际实现中应该启动 Redis 订阅循环
-        // 这里是简化版本
+    /// 启动订阅
+    ///
+    /// 为所有已注册的命名空间创建 Redis Pub/Sub 订阅，
+    /// 并在后台任务中持续监听缓存失效事件。
+    pub async fn start(&self) -> Result<(), SyncError> {
+        if self.task_handle.lock().is_some() {
+            return Ok(());
+        }
+
+        if self.namespaces.is_empty() {
+            return Ok(());
+        }
+
+        let channels: Vec<String> = self
+            .namespaces
+            .iter()
+            .map(|ns| self.broadcaster.channel_name(ns))
+            .collect();
+
+        let mut receiver = self
+            .backend
+            .subscribe(&channels)
+            .await
+            .map_err(|e| SyncError::Subscribe(e.to_string()))?;
+
+        let broadcaster = self.broadcaster.clone();
+
+        let handle = tokio::spawn(async move {
+            while let Some((channel, message)) = receiver.recv().await {
+                if let Some(ns) = channel.rfind(':').map(|pos| &channel[pos + 1..]) {
+                    broadcaster.handle_message(ns, &message);
+                }
+            }
+        });
+
+        *self.task_handle.lock() = Some(handle);
+
+        Ok(())
     }
 
     /// 停止订阅
+    ///
+    /// 中止后台订阅任务，停止接收远程事件
     pub fn stop(&self) {
-        self.running
-            .store(false, std::sync::atomic::Ordering::Release);
+        if let Some(handle) = self.task_handle.lock().take() {
+            handle.abort();
+        }
     }
 
     /// 是否正在运行
     pub fn is_running(&self) -> bool {
-        self.running.load(std::sync::atomic::Ordering::Acquire)
+        self.task_handle
+            .lock()
+            .as_ref()
+            .is_some_and(|h| !h.is_finished())
+    }
+}
+
+impl<B: RedisBackend + 'static> Drop for CacheSyncSubscriber<B> {
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 
@@ -365,7 +411,7 @@ impl<B: RedisBackend + 'static> CacheSyncSubscriber<B> {
 /// 在缓存操作后自动广播事件，实现多节点同步
 pub struct SyncCacheWrapper<K, V, B>
 where
-    K: Clone + ToString + Send + Sync + std::hash::Hash + Eq + 'static,
+    K: Clone + ToString + Send + Sync + std::hash::Hash + Eq + 'static + From<String>,
     V: Clone + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     B: RedisBackend + 'static,
 {
@@ -381,20 +427,48 @@ where
 
 impl<K, V, B> SyncCacheWrapper<K, V, B>
 where
-    K: Clone + ToString + Send + Sync + std::hash::Hash + Eq + 'static,
+    K: Clone + ToString + Send + Sync + std::hash::Hash + Eq + 'static + From<String>,
     V: Clone + serde::Serialize + serde::de::DeserializeOwned + Send + Sync + 'static,
     B: RedisBackend + 'static,
 {
     /// 创建同步缓存包装器
+    ///
+    /// 自动注册远程缓存失效处理器到广播器
     pub fn new(
         inner: Arc<super::MultiLevelCache<K, V, B>>,
         broadcaster: Arc<CacheSyncBroadcaster<B>>,
         namespace: &str,
     ) -> Self {
+        let ns = namespace.to_string();
+        let invalidation_inner = inner.clone();
+        broadcaster.register_fn(&ns, move |event| {
+            match event.event_type {
+                CacheEventType::Invalidate | CacheEventType::Delete => {
+                    let key = K::from(event.key.clone());
+                    invalidation_inner.invalidate_local(&key);
+                }
+                CacheEventType::Clear => {
+                    invalidation_inner.clear_l1();
+                }
+                CacheEventType::Update => {
+                    if let Some(ref value) = event.value
+                        && let Ok(val) = serde_json::from_str::<V>(value)
+                    {
+                        let key = K::from(event.key.clone());
+                        let cache = invalidation_inner.clone();
+                        tokio::spawn(async move {
+                            let _ = cache.set(key, val).await;
+                        });
+                    }
+                }
+                _ => {}
+            }
+        });
+
         Self {
             inner,
             broadcaster,
-            namespace: namespace.to_string(),
+            namespace: ns,
             sync_enabled: true,
         }
     }
@@ -465,15 +539,22 @@ where
     pub fn handle_remote_event(&self, event: &CacheEvent) {
         match event.event_type {
             CacheEventType::Invalidate | CacheEventType::Delete => {
-                // 需要转换键类型，这里简化处理
-                // 实际实现中需要正确处理类型转换
-            }
-            CacheEventType::Update => {
-                // 更新事件可以选择忽略或更新本地缓存
+                let key = K::from(event.key.clone());
+                self.inner.invalidate_local(&key);
             }
             CacheEventType::Clear => {
-                // 清除本地缓存
-                // 由于是异步操作，需要特殊处理
+                self.inner.clear_l1();
+            }
+            CacheEventType::Update => {
+                if let Some(ref value) = event.value
+                    && let Ok(val) = serde_json::from_str::<V>(value)
+                {
+                    let key = K::from(event.key.clone());
+                    let cache = self.inner.clone();
+                    tokio::spawn(async move {
+                        let _ = cache.set(key, val).await;
+                    });
+                }
             }
             _ => {}
         }

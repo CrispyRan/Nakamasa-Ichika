@@ -199,7 +199,14 @@ impl Handler for AdminAuth {
         )
         .bind(id)
         .bind("y")
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(match app_state.get_db() {
+            Some(pool) => pool,
+            None => {
+                res.render(Json(ApiResponse::<()>::error(ERR_DB_ERROR, 201)));
+                ctrl.skip_rest();
+                return;
+            }
+        })
         .await;
 
         let admin = match admin_result {

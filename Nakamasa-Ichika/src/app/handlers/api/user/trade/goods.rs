@@ -5,8 +5,13 @@
 //!
 //! 处理流程：
 //! 1. 验证应用类型为用户版
-//! 2. 分页查询商品表
+//! 2. 分页查询商品表（优先使用缓存）
 //! 3. 返回商品名称、价格、时长等信息
+//!
+//! 缓存策略：
+//! - key: "appid:page"，value: 完整响应 JSON
+//! - TTL: 5分钟，管理员 CRUD 商品后主动失效
+//! - 仅管理员修改商品，用户端只读，缓存安全
 
 use salvo::prelude::*;
 use std::sync::Arc;
@@ -31,13 +36,13 @@ pub async fn goods(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
-        let db = match app_state.get_db() {
-            Some(pool) => pool,
-            None => {
-                render_error(res, "系统错误", 201, "");
-                return;
-            }
-        };
+    let db = match app_state.get_db() {
+        Some(pool) => pool,
+        None => {
+            render_error(res, "系统错误", 201, "");
+            return;
+        }
+    };
 
     // 获取应用信息
     let app_info = match depot.get::<AppInfo>("app_info") {
@@ -64,18 +69,27 @@ pub async fn goods(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     let appid = app_info.id;
 
-    // 页码处理：默认为1，使用 saturating_sub 避免 underflow
+    // 页码处理：默认为1
     let page = goods_req.pg.unwrap_or(1).max(1);
+
+    // ========== 查缓存 ==========
+    let cache_key = format!("{}:{}", appid, page);
+    if let Some(cached) = app_state.goods_list_cache.get(&cache_key) {
+        render_success(res, app_key, Some(cached), app_info.mi.as_ref());
+        return;
+    }
+
+    // ========== 缓存未命中，查数据库 ==========
     let offset = page.saturating_sub(1) * PAGE_SIZE;
 
     // 查询数据总量
-    let count_result =
-        sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM u_goods WHERE state = 'y' AND appid = ?")
-            .bind(appid)
-            .fetch_one(db)
-            .await;
-
-    let data_total = match count_result {
+    let data_total = match sqlx::query_as::<_, (i64,)>(
+        "SELECT COUNT(*) FROM u_goods WHERE state = 'y' AND appid = ?",
+    )
+    .bind(appid)
+    .fetch_one(db)
+    .await
+    {
         Ok(row) => row.0 as u32,
         Err(e) => {
             tracing::error!("获取商品总数失败: {}", e);
@@ -117,7 +131,13 @@ pub async fn goods(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                 page_total,
             };
 
-            render_success(res, app_key, Some(response), app_info.mi.as_ref());
+            // 写入缓存
+            if let Ok(cached_value) = serde_json::to_value(&response) {
+                app_state.goods_list_cache.set(cache_key, cached_value.clone());
+                render_success(res, app_key, Some(cached_value), app_info.mi.as_ref());
+            } else {
+                render_success(res, app_key, Some(response), app_info.mi.as_ref());
+            }
         }
         Err(e) => {
             tracing::error!("获取商品列表失败: {}", e);

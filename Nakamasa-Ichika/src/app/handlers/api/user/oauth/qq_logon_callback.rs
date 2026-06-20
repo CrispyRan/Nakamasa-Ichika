@@ -69,8 +69,9 @@ struct QqUserInfo {
 
 /* 自定义 HTML 错误页 */
 fn render_error_page(res: &mut Response, msg: &str) {
-    res.headers_mut()
-        .insert("Content-Type", "text/html; charset=utf-8".parse().unwrap());
+    if let Ok(val) = "text/html; charset=utf-8".parse::<salvo::http::HeaderValue>() {
+        res.headers_mut().insert("Content-Type", val);
+    }
     res.render(render_result_page("登录失败", 0, msg));
 }
 
@@ -238,8 +239,9 @@ pub async fn qq_logon_callback(req: &mut Request, depot: &mut Depot, res: &mut R
 
     // QQ互联要求redirect_uri必须与申请应用时填写的一致，APP_URL不能为空
     if qq_callback_url.is_empty() {
-        res.headers_mut()
-            .insert("Content-Type", "text/html; charset=utf-8".parse().unwrap());
+        if let Ok(val) = "text/html; charset=utf-8".parse::<salvo::http::HeaderValue>() {
+            res.headers_mut().insert("Content-Type", val);
+        }
         res.render(render_result_page(
             "登录失败",
             0,
@@ -355,8 +357,9 @@ pub async fn qq_logon_callback(req: &mut Request, depot: &mut Depot, res: &mut R
     )
     .await;
 
-    res.headers_mut()
-        .insert("Content-Type", "text/html; charset=utf-8".parse().unwrap());
+    if let Ok(val) = "text/html; charset=utf-8".parse::<salvo::http::HeaderValue>() {
+        res.headers_mut().insert("Content-Type", val);
+    }
     res.render(render_result_page(result.0, result.1, &result.2));
 }
 
@@ -373,7 +376,10 @@ async fn __logon(
         None => return ("error", -1, "系统错误".to_string()),
     };
     let redis_util = &app_state.redis_util;
-    let redis_pool = app_state.redis_pool.as_ref().unwrap();
+    let redis_pool = match app_state.redis_pool.as_ref() {
+        Some(pool) => pool,
+        None => return ("error", -1, "系统错误".to_string()),
+    };
     let current_time = Utc::now().timestamp();
     let appid = logon_info.appid;
 

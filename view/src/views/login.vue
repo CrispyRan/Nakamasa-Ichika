@@ -13,11 +13,7 @@ const captcha = ref(null)
 
 const loading = ref(false)
 
-let isDevelop = import.meta.env.VITE_APP_ENV === 'development'
-
-var odata = isDevelop ? { user: 'admin', password: '123456'} : { user: '', password: ''}
-
-const form = reactive(odata)
+const form = reactive({ user: '', password: ''})
 
 const userStore = useUserStore()
 

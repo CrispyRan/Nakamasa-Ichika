@@ -14,6 +14,7 @@ use crate::app::utils::validator::Validator;
 use crate::core::AppState;
 use crate::core::admin_cache::{AdminData, CacheResult};
 use crate::core::md5_optimize::{md5_hex, md5_to_str};
+use crate::core::middleware::get_client_ip;
 
 // 预分配错误消息 - 静态字符串零分配
 static ERR_PARSE_FAIL: &str = "参数解析失败";
@@ -130,7 +131,7 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let password_md5_str = md5_to_str(&password_md5_bytes);
 
     let info = admin_data_to_info(&admin);
-    let ip = "127.0.0.1";
+    let ip = get_client_ip(req);
 
     let token = match jwt_builder
         .set_iss("admin")
@@ -159,9 +160,12 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         .bind("login")
         .bind(true)
         .bind(now)
-        .bind("127.0.0.1")
+        .bind(&ip)
         .bind(Option::<u64>::None)
-        .execute(db.as_ref().expect("DB not initialized"))
+        .execute(match db.as_ref() {
+            Some(pool) => pool,
+            None => return,
+        })
         .await;
     });
 

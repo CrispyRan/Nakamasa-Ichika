@@ -621,6 +621,10 @@ pub async fn award(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     }
 
     if success {
+        // 批量修改用户 fen/vip 影响统计面板
+        if let Ok(appid_u64) = appid.parse::<u64>() {
+            app_state.invalidate_stats_cache(appid_u64);
+        }
         res.render(Json(ApiResponse::success_msg("奖励执行成功")));
     } else {
         res.render(Json(ApiResponse::<()>::error("奖励执行失败", 201)));
@@ -1084,6 +1088,10 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             if r.rows_affected() > 0 {
                 // 失效用户缓存
                 app_state.invalidate_user_cache(del_req.id as u64);
+                // 统计面板缓存失效（用户数减少）
+                if let Ok(appid_u64) = appid.parse::<u64>() {
+                    app_state.invalidate_stats_cache(appid_u64);
+                }
 
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {

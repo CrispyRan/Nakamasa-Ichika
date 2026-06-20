@@ -76,14 +76,21 @@ pub async fn get_set(_req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
-        let db = match app_state.get_db() {
-            Some(pool) => pool,
-            None => {
-                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
-                                    return;
-            }
-        };
+    let db = match app_state.get_db() {
+        Some(pool) => pool,
+        None => {
+            res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+            return;
+        }
+    };
 
+    // ========== 查缓存 ==========
+    if let Some(cached) = app_state.system_settings_cache.get(&"global".to_string()) {
+        res.render(Json(ApiResponse::success("成功", Some(cached))));
+        return;
+    }
+
+    // ========== 缓存未命中，查数据库 ==========
     let query = "SELECT `key`, `value` FROM u_settings";
 
     let result = sqlx::query_as::<_, (String, String)>(query)
@@ -93,6 +100,9 @@ pub async fn get_set(_req: &mut Request, depot: &mut Depot, res: &mut Response) 
     match result {
         Ok(rows) => {
             let settings: std::collections::HashMap<String, String> = rows.into_iter().collect();
+            app_state
+                .system_settings_cache
+                .set("global".to_string(), settings.clone());
             res.render(Json(ApiResponse::success("成功", Some(settings))));
         }
         Err(e) => {
@@ -157,6 +167,8 @@ pub async fn edit_set(req: &mut Request, depot: &mut Depot, res: &mut Response) 
 
     match result {
         Ok(_) => {
+            // 系统设置已修改，失效缓存
+            app_state.invalidate_settings_cache();
             res.render(Json(ApiResponse::success_msg("编辑设置成功")));
         }
         Err(e) => {

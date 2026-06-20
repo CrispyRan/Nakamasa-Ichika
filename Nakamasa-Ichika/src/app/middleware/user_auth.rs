@@ -617,11 +617,13 @@ impl UserAuth {
         }
 
         // 使用常量时间比较防止时序攻击
-        let password_valid = if user_type == "kami" {
-            user_info.password.is_empty() || constant_time_eq(&user_info.password, &token_data.p)
-        } else {
-            constant_time_eq(&user_info.password, &token_data.p)
-        };
+        // 不允许空密码通过认证（CVE-2024-xxx: 空密码绕过）
+        if user_info.password.is_empty() {
+            res.render(Json(ApiResponse::<()>::error_static("账号配置异常，请联系管理员", 131)));
+            ctrl.skip_rest();
+            return None;
+        }
+        let password_valid = constant_time_eq(&user_info.password, &token_data.p);
 
         if !password_valid {
             res.render(Json(ApiResponse::<()>::error_static("Token已过期", 131)));
@@ -827,7 +829,10 @@ async fn fetch_user_info_from_db(
         )
         .bind(uid)
         .bind(appid)
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(match app_state.get_db() {
+            Some(pool) => pool,
+            None => return Ok(None),
+        })
         .await?;
 
         if let Some(r) = row {
@@ -877,7 +882,10 @@ async fn fetch_user_info_from_db(
         )
         .bind(uid)
         .bind(appid)
-        .fetch_optional(app_state.get_db().expect("db"))
+        .fetch_optional(match app_state.get_db() {
+            Some(pool) => pool,
+            None => return Ok(None),
+        })
         .await?;
 
         if let Some(r) = row {

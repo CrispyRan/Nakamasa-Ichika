@@ -14,7 +14,7 @@ struct GetListRequest {
     size: Option<u32>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 struct FunctionItem {
     id: u64,
     name: String,
@@ -44,13 +44,13 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             return;
         }
     };
-        let db = match app_state.get_db() {
-            Some(pool) => pool,
-            None => {
-                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
-                                    return;
-            }
-        };
+    let db = match app_state.get_db() {
+        Some(pool) => pool,
+        None => {
+            res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+            return;
+        }
+    };
 
     let list_req = match req.parse_json::<GetListRequest>().await {
         Ok(data) => data,
@@ -82,43 +82,44 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
 
     let page = list_req.pg.unwrap_or(1).max(1);
     let page_size = list_req.size.unwrap_or(10).max(1);
-    let offset = (page - 1) * page_size;
 
-    // 查询总数
-    let count_result =
-        sqlx::query_as::<_, (i64,)>("SELECT COUNT(*) FROM u_app_function WHERE appid = ?")
-            .bind(appid)
-            .fetch_one(db)
-            .await;
+    // ========== 查通用缓存 ==========
+    let cache_key = format!("fn:{}", appid);
+    if let Some(cached) = app_state.generic_cache.get(&cache_key) {
+        if let Ok(all_items) = serde_json::from_value::<Vec<FunctionItem>>(cached) {
+            let data_total = all_items.len() as u64;
+            let page_total = if data_total == 0 {
+                0
+            } else {
+                ((data_total - 1) / page_size as u64 + 1) as u32
+            };
+            let start = ((page - 1) * page_size) as usize;
+            let end = (start + page_size as usize).min(all_items.len());
+            let list: Vec<FunctionItem> = all_items[start..end].to_vec();
 
-    let data_total = match count_result {
-        Ok((count,)) => count as u64,
-        Err(e) => {
-            tracing::error!("数据库查询失败: {}", e);
-            res.render(Json(ApiResponse::<()>::error("列表获取失败", 201)));
+            let response = ListResponse {
+                list,
+                current_page: page,
+                page_total,
+                data_total,
+            };
+            res.render(Json(ApiResponse::success("成功", Some(response))));
             return;
         }
-    };
+    }
 
-    let page_total = if data_total == 0 {
-        0
-    } else {
-        ((data_total - 1) / page_size as u64 + 1) as u32
-    };
-
-    // 查询列表
-    let query = "SELECT id, name, notes, allow, IFNULL(fen, 0) as fen, state FROM u_app_function WHERE appid = ? ORDER BY id DESC LIMIT ? OFFSET ?";
+    // ========== 缓存未命中，查数据库 ==========
+    // 查询全量数据（不分页），缓存后做内存分页
+    let query = "SELECT id, name, notes, allow, IFNULL(fen, 0) as fen, state FROM u_app_function WHERE appid = ? ORDER BY id DESC";
 
     let result = sqlx::query_as::<_, (u64, String, String, Option<i32>, i32, String)>(query)
         .bind(appid)
-        .bind(page_size)
-        .bind(offset)
         .fetch_all(db)
         .await;
 
     match result {
         Ok(rows) => {
-            let list: Vec<FunctionItem> = rows
+            let all_items: Vec<FunctionItem> = rows
                 .into_iter()
                 .map(|row| FunctionItem {
                     id: row.0,
@@ -130,13 +131,28 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
                 })
                 .collect();
 
+            // 写入缓存
+            if let Ok(json) = serde_json::to_value(&all_items) {
+                app_state.generic_cache.set(cache_key, json);
+            }
+
+            // 内存分页
+            let data_total = all_items.len() as u64;
+            let page_total = if data_total == 0 {
+                0
+            } else {
+                ((data_total - 1) / page_size as u64 + 1) as u32
+            };
+            let start = ((page - 1) * page_size) as usize;
+            let end = (start + page_size as usize).min(all_items.len());
+            let list: Vec<FunctionItem> = all_items[start..end].to_vec();
+
             let response = ListResponse {
                 list,
                 current_page: page,
                 page_total,
                 data_total,
             };
-
             res.render(Json(ApiResponse::success("成功", Some(response))));
         }
         Err(e) => {
@@ -272,6 +288,8 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                 r.rows_affected(),
                 r.last_insert_id()
             );
+            // 失效云函数缓存
+            app_state.invalidate_generic_cache(&format!("fn:{}", appid));
             res.render(Json(ApiResponse::success(
                 "添加成功",
                 Some(serde_json::json!({"id": r.last_insert_id()})),
@@ -503,6 +521,15 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         return;
     }
 
+    // 查询函数所属 appid 用于缓存失效
+    let edit_fn_appid: u64 = sqlx::query_scalar("SELECT appid FROM u_app_function WHERE id = ?")
+        .bind(edit_req.id)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(0);
+
     let result = sqlx::query(
         "UPDATE u_app_function SET name = ?, code = ?, notes = ?, allow = ?, fen = ?, state = ? WHERE id = ?"
     )
@@ -519,6 +546,10 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // 失效云函数缓存
+                if edit_fn_appid > 0 {
+                    app_state.invalidate_generic_cache(&format!("fn:{}", edit_fn_appid));
+                }
                 res.render(Json(ApiResponse::success_msg("编辑成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("编辑失败，记录不存在", 201)));
@@ -566,6 +597,15 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
+    // 查询函数所属 appid（删除前获取，删除后记录消失）
+    let del_fn_appid: u64 = sqlx::query_scalar("SELECT appid FROM u_app_function WHERE id = ?")
+        .bind(del_req.id)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(0);
+
     let result = sqlx::query("DELETE FROM u_app_function WHERE id = ?")
         .bind(del_req.id)
         .execute(db)
@@ -574,6 +614,10 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // 失效云函数缓存
+                if del_fn_appid > 0 {
+                    app_state.invalidate_generic_cache(&format!("fn:{}", del_fn_appid));
+                }
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("删除失败", 201)));
@@ -623,6 +667,15 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
         return;
     }
 
+    // 查询函数所属 appid 用于缓存失效
+    let state_fn_appid: u64 = sqlx::query_scalar("SELECT appid FROM u_app_function WHERE id = ?")
+        .bind(state_req.id)
+        .fetch_optional(db)
+        .await
+        .ok()
+        .flatten()
+        .unwrap_or(0);
+
     let result = sqlx::query("UPDATE u_app_function SET state = ? WHERE id = ?")
         .bind(&state_req.state)
         .bind(state_req.id)
@@ -632,6 +685,10 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // 失效云函数缓存
+                if state_fn_appid > 0 {
+                    app_state.invalidate_generic_cache(&format!("fn:{}", state_fn_appid));
+                }
                 res.render(Json(ApiResponse::success_msg("编辑成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("编辑失败", 201)));

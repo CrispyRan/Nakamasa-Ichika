@@ -354,6 +354,16 @@ where
         }
     }
 
+    /// 仅清除 L1 缓存（用于远程缓存失效事件）
+    pub fn invalidate_local(&self, key: &K) {
+        if let Some(l1) = &self.l1 {
+            l1.remove(key);
+        }
+        self.null_cache.write().pop(key);
+        self.hot_keys.write().pop(key);
+        self.access_counts.write().remove(key);
+    }
+
     /// 删除缓存值
     pub async fn delete(&self, key: &K) -> Result<(), RedisError> {
         // 从 L1 删除

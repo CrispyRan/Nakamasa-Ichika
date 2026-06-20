@@ -9,7 +9,7 @@ use crate::app::utils::response::ApiResponse;
 use crate::core::app_state::AppState;
 use std::sync::Arc;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct GroupItem {
     name: Option<String>,
     ver_key: String,
@@ -52,6 +52,15 @@ pub async fn get_group(req: &mut Request, depot: &mut Depot, res: &mut Response)
         }
     };
 
+    // 查通用缓存
+    let cache_key = format!("ver_group:{}", appid);
+    if let Some(cached) = app_state.generic_cache.get(&cache_key) {
+        if let Ok(list) = serde_json::from_value::<Vec<GroupItem>>(cached) {
+            res.render(Json(ApiResponse::success("成功", Some(list))));
+            return;
+        }
+    }
+
     let query =
         "SELECT DISTINCT name, ver_key FROM u_app_ver WHERE appid = ? GROUP BY name, ver_key";
 
@@ -69,7 +78,10 @@ pub async fn get_group(req: &mut Request, depot: &mut Depot, res: &mut Response)
                     ver_key: row.1,
                 })
                 .collect();
-
+            // 写入缓存
+            if let Ok(json) = serde_json::to_value(&list) {
+                app_state.generic_cache.set(cache_key, json);
+            }
             res.render(Json(ApiResponse::success("成功", Some(list))));
         }
         Err(e) => {
@@ -89,7 +101,7 @@ struct GetListRequest {
     so: Option<SearchOptions>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[allow(dead_code)]
 struct SearchOptions {
     #[serde(default)]
@@ -413,6 +425,8 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(_) => {
             app_state.invalidate_app_runtime_cache(appid);
+            // 版本分组变更，失效分组列表缓存
+            app_state.invalidate_generic_cache(&format!("ver_group:{}", appid));
             res.render(Json(ApiResponse::success_msg("添加成功")));
         }
         Err(e) => {
@@ -550,6 +564,8 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(_) => {
             app_state.invalidate_app_runtime_cache(appid);
+            // 版本分组变更，失效分组列表缓存
+            app_state.invalidate_generic_cache(&format!("ver_group:{}", appid));
             res.render(Json(ApiResponse::success_msg("编辑成功")));
         }
         Err(e) => {
@@ -598,72 +614,76 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         Ok(r) => {
             if r.rows_affected() > 0 {
                 app_state.invalidate_app_runtime_cache(0);
-                res.render(Json(ApiResponse::success_msg("删除成功")));
-            } else {
-                res.render(Json(ApiResponse::<()>::error("删除失败", 201)));
-            }
-        }
-        Err(e) => {
-            tracing::error!("删除失败: {}", e);
-            res.render(Json(ApiResponse::<()>::error("删除失败", 201)));
-        }
-    }
-}
+                                // 版本变更，清空通用缓存（版本分组缓存可能受影响）
+                                app_state.clear_generic_cache();
+                                res.render(Json(ApiResponse::success_msg("删除成功")));
+                            } else {
+                                res.render(Json(ApiResponse::<()>::error("删除失败", 201)));
+                            }
+                        }
+                        Err(e) => {
+                            tracing::error!("删除失败: {}", e);
+                            res.render(Json(ApiResponse::<()>::error("删除失败", 201)));
+                        }
+                    }
+                }
 
-#[derive(Debug, Deserialize)]
-struct DelAllRequest {
-    ids: Vec<u64>,
-}
+                #[derive(Debug, Deserialize)]
+                struct DelAllRequest {
+                    ids: Vec<u64>,
+                }
 
-#[handler]
-pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
-    let app_state = match depot.obtain::<Arc<AppState>>() {
-        Ok(s) => s,
-        Err(_) => {
-            res.render(Json(ApiResponse::<()>::error("服务器错误", 201)));
-            return;
-        }
-    };
-        let db = match app_state.get_db() {
-            Some(pool) => pool,
-            None => {
-                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
-                                    return;
-            }
-        };
+                #[handler]
+                pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+                    let app_state = match depot.obtain::<Arc<AppState>>() {
+                        Ok(s) => s,
+                        Err(_) => {
+                            res.render(Json(ApiResponse::<()>::error("服务器错误", 201)));
+                            return;
+                        }
+                    };
+                        let db = match app_state.get_db() {
+                            Some(pool) => pool,
+                            None => {
+                                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+                                                    return;
+                            }
+                        };
 
-    let del_req = match req.parse_json::<DelAllRequest>().await {
-        Ok(data) => data,
-        Err(_) => {
-            res.render(Json(ApiResponse::<()>::error("参数解析失败", 201)));
-            return;
-        }
-    };
+                    let del_all_req = match req.parse_json::<DelAllRequest>().await {
+                        Ok(data) => data,
+                        Err(_) => {
+                            res.render(Json(ApiResponse::<()>::error("参数解析失败", 201)));
+                            return;
+                        }
+                    };
 
-    if del_req.ids.is_empty() || del_req.ids.len() > 1000 || del_req.ids.contains(&0) {
-        res.render(Json(ApiResponse::<()>::error("请选择要删除的数据", 201)));
-        return;
-    }
+                    if del_all_req.ids.is_empty() || del_all_req.ids.len() > 1000 || del_all_req.ids.contains(&0) {
+                        res.render(Json(ApiResponse::<()>::error("请选择要删除的数据", 201)));
+                        return;
+                    }
 
-    // 构建 IN 查询
-    let placeholders: Vec<&str> = del_req.ids.iter().map(|_| "?").collect();
-    let query_str = format!(
-        "DELETE FROM u_app_ver WHERE id IN ({})",
-        placeholders.join(",")
-    );
+                    // 构建 IN 查询
+                    let placeholders: Vec<&str> = del_all_req.ids.iter().map(|_| "?").collect();
+                    let query_str = format!(
+                        "DELETE FROM u_app_ver WHERE id IN ({})",
+                        placeholders.join(",")
+                    );
 
-    let mut query = sqlx::query(&query_str);
-    for id in &del_req.ids {
-        query = query.bind(id);
-    }
+                    let mut query = sqlx::query(&query_str);
+                    for id in &del_all_req.ids {
+                        query = query.bind(id);
+                    }
 
-    let result = query.execute(db).await;
+                    let result = query.execute(db).await;
 
-    match result {
-        Ok(r) => {
-            if r.rows_affected() > 0 {
-                app_state.invalidate_app_runtime_cache(0);
-                res.render(Json(ApiResponse::success_msg("删除成功")));
+                    match result {
+                        Ok(r) => {
+                            if r.rows_affected() > 0 {
+                                app_state.invalidate_app_runtime_cache(0);
+                                // 版本批量删除，清空通用缓存
+                                app_state.clear_generic_cache();
+                                res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("删除失败", 201)));
             }
@@ -713,11 +733,13 @@ pub async fn discard(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         .await;
 
     match result {
-        Ok(r) => {
-            if r.rows_affected() > 0 {
-                app_state.invalidate_app_runtime_cache(0);
-                res.render(Json(ApiResponse::success_msg("操作成功")));
-            } else {
+                Ok(r) => {
+                    if r.rows_affected() > 0 {
+                        app_state.invalidate_app_runtime_cache(0);
+                        // 版本状态变更，清空通用缓存
+                        app_state.clear_generic_cache();
+                        res.render(Json(ApiResponse::success_msg("操作成功")));
+                    } else {
                 res.render(Json(ApiResponse::<()>::error("操作失败", 201)));
             }
         }
@@ -728,7 +750,7 @@ pub async fn discard(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct MiItem {
     id: u64,
     name: String,
@@ -753,6 +775,15 @@ pub async fn get_milist(depot: &mut Depot, res: &mut Response) {
             }
         };
 
+    // 通用缓存
+    let cache_key = "ver_milist".to_string();
+    if let Some(cached) = app_state.generic_cache.get(&cache_key) {
+        if let Ok(list) = serde_json::from_value::<Vec<MiItem>>(cached) {
+            res.render(Json(ApiResponse::success("成功", Some(list))));
+            return;
+        }
+    }
+
     let result = sqlx::query_as::<_, (u64, String, String)>("SELECT id, name, type FROM u_app_mi")
         .fetch_all(db)
         .await;
@@ -767,6 +798,10 @@ pub async fn get_milist(depot: &mut Depot, res: &mut Response) {
                     mi_type: row.2,
                 })
                 .collect();
+            // 写入缓存
+            if let Ok(json) = serde_json::to_value(&list) {
+                app_state.generic_cache.set(cache_key, json);
+            }
             res.render(Json(ApiResponse::success("成功", Some(list))));
         }
         Err(e) => {
@@ -867,6 +902,8 @@ pub async fn submit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
         match result {
             Ok(_) => {
+                // 版本编辑，清空通用缓存（版本分组缓存可能受影响）
+                app_state.clear_generic_cache();
                 res.render(Json(ApiResponse::success_msg("编辑成功")));
             }
             Err(e) => {
@@ -919,6 +956,8 @@ pub async fn submit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
         match result {
             Ok(_) => {
+                // 版本添加，清空通用缓存（版本分组缓存可能受影响）
+                app_state.clear_generic_cache();
                 res.render(Json(ApiResponse::success_msg("添加成功")));
             }
             Err(e) => {

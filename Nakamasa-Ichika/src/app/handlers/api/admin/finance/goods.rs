@@ -252,6 +252,8 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // 商品变更，失效用户端商品列表缓存
+                app_state.invalidate_goods_cache(appid as u64);
                 res.render(Json(ApiResponse::success_msg("添加成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("添加失败", 201)));
@@ -325,6 +327,8 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // 商品变更，失效用户端商品列表缓存
+                app_state.invalidate_goods_cache(0);
                 res.render(Json(ApiResponse::success_msg("编辑成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("编辑失败", 201)));
@@ -383,6 +387,8 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // 商品状态变更，失效用户端商品列表缓存
+                app_state.invalidate_goods_cache(0);
                 res.render(Json(ApiResponse::success_msg("编辑成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("编辑失败", 201)));
@@ -433,6 +439,8 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // 商品删除，失效用户端商品列表缓存
+                app_state.invalidate_goods_cache(0);
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("删除失败", 201)));

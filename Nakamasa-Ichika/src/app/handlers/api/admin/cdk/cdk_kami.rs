@@ -528,6 +528,8 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         Ok(_) => {
             let failed = add_req.num - success_count;
             if success_count >= 1 {
+                // 卡密新增，失效统计面板缓存
+                app_state.invalidate_stats_cache(appid);
                 res.render(Json(ApiResponse::success(
                     format!(
                         "创建成功，本次添加：{}条卡密，失败：{}条",
@@ -1348,6 +1350,8 @@ pub async fn clear(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     match result {
         Ok(r) => {
+            // 清理已使用卡密，失效统计面板缓存
+            app_state.invalidate_stats_cache(appid);
             res.render(Json(ApiResponse::success_msg(format!(
                 "清理成功，共删除 {} 条卡密",
                 r.rows_affected()

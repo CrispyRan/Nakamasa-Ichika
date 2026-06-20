@@ -24,6 +24,7 @@ use crate::app::utils::response::{
 };
 use crate::app::utils::validator::Validator;
 use crate::core::AppState;
+use crate::core::app_state::AppConfigCache;
 use crate::core::middleware::get_client_ip;
 
 /// 签到奖励配置
@@ -64,8 +65,29 @@ async fn get_diary_award_config(app_state: &Arc<AppState>, appid: u64) -> DiaryA
 
     match result {
         Ok(Some(row)) => {
-            // 存入缓存（不完整，只存需要的数据）
-            // 实际使用时可以存完整的 AppConfigCache
+            let diary_award = row.0.clone().unwrap_or_else(|| "fen".to_string());
+            let diary_award_val = row.1.unwrap_or(0);
+            
+            // 写入完整缓存条目
+            let cached = AppConfigCache {
+                id: appid,
+                app_key: String::new(), // 签到不需要app_key
+                app_type: String::new(),
+                app_name: String::new(),
+                logon_state: String::new(),
+                logon_off_msg: None,
+                logon_sn_num: 0,
+                logon_sn_dk: String::new(),
+                logon_token_exp: 0,
+                reg_state: String::new(),
+                reg_way: String::new(),
+                vc_time: 0,
+                diary_award,
+                diary_award_val,
+                ..Default::default()
+            };
+            app_state.app_config_cache.set(appid, cached);
+            
             DiaryAwardConfig {
                 diary_award: row.0.clone().unwrap_or_else(|| "fen".to_string()),
                 diary_award_val: row.1.unwrap_or(0),

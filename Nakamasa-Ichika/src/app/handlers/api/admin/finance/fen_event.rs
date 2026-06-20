@@ -3,10 +3,10 @@
 
 use salvo::prelude::*;
 use serde::{Deserialize, Serialize};
-
-use crate::app::utils::response::ApiResponse;
-use crate::core::app_state::AppState;
 use std::sync::Arc;
+
+use crate::core::app_state::{AppState, FenEventListItem as FenEventListItemCache};
+use crate::app::utils::response::ApiResponse;
 
 // ==================== 获取全部事件列表 ====================
 
@@ -164,6 +164,53 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         }
     };
 
+    // ========== 缓存优化：无筛选条件时优先查缓存 ==========
+    let has_keyword_filter = list_req.so.as_ref()
+        .and_then(|so| so.keyword.as_ref())
+        .map(|k| !k.is_empty())
+        .unwrap_or(false);
+
+    if !has_keyword_filter {
+        // 尝试从缓存获取完整列表
+        if let Some(cached_list) = app_state.fen_event_list_cache.get(&appid) {
+            let page = list_req.page.unwrap_or(1).max(1);
+            let size = list_req.size.unwrap_or(10);
+            let offset = (page - 1) * size;
+
+            let data_total = cached_list.len() as i64;
+            let page_total = if data_total == 0 {
+                0
+            } else {
+                ((data_total - 1) / size as i64 + 1) as i32
+            };
+
+            let start = offset as usize;
+            let end = (start + size as usize).min(cached_list.len());
+            let list: Vec<FenEventListItem> = cached_list[start..end]
+                .iter()
+                .map(|item| FenEventListItem {
+                    id: item.id,
+                    name: item.name.clone(),
+                    fen: item.fen,
+                    vip: item.vip,
+                    vip_free: item.vip_free.clone(),
+                    appid: item.appid,
+                    state: item.state.clone(),
+                })
+                .collect();
+
+            let response = FenEventListResponse {
+                list,
+                current_page: page,
+                page_total,
+                data_total,
+            };
+            res.render(Json(ApiResponse::success("成功", Some(response))));
+            return;
+        }
+    }
+    // ====================================================
+
     let page = list_req.page.unwrap_or(1).max(1);
     let size = list_req.size.unwrap_or(10);
     let offset = (page - 1) * size;
@@ -220,17 +267,34 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     match result {
         Ok(rows) => {
             let list: Vec<FenEventListItem> = rows
-                .into_iter()
+                .iter()
                 .map(|row| FenEventListItem {
                     id: row.0,
-                    name: row.1,
+                    name: row.1.clone(),
                     fen: row.2,
                     vip: row.3,
-                    vip_free: row.4,
+                    vip_free: row.4.clone(),
                     appid: row.5,
-                    state: row.6,
+                    state: row.6.clone(),
                 })
                 .collect();
+
+            // 缓存完整列表（无筛选条件时）
+            if !has_keyword_filter {
+                let cache_items: Vec<FenEventListItemCache> = rows
+                    .into_iter()
+                    .map(|row| FenEventListItemCache {
+                        id: row.0,
+                        name: row.1,
+                        fen: row.2,
+                        vip: row.3,
+                        vip_free: row.4,
+                        appid: row.5 as i64,
+                        state: row.6,
+                    })
+                    .collect();
+                app_state.fen_event_list_cache.set(appid, cache_items);
+            }
 
             let response = FenEventListResponse {
                 list,
@@ -238,7 +302,6 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
                 page_total,
                 data_total,
             };
-
             res.render(Json(ApiResponse::success("成功", Some(response))));
         }
         Err(e) => {
@@ -396,6 +459,9 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         Ok(result) => {
             if result.rows_affected() > 0 {
                 let add_id = result.last_insert_id();
+
+                // 失效积分事件列表缓存
+                app_state.invalidate_fen_event_list_cache(appid);
 
                 if let Err(e) = add_log(depot, app_state, add_id).await {
                     tracing::error!("日志记录失败: {}", e);
@@ -564,6 +630,8 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             if result.rows_affected() > 0 {
                 // 失效积分事件缓存
                 app_state.invalidate_fen_event_cache(edit_req.id as u64);
+                // 失效积分事件列表缓存
+                app_state.invalidate_fen_event_list_cache(appid);
 
                 if let Err(e) = add_log(depot, app_state, result.rows_affected()).await {
                     tracing::error!("日志记录失败: {}", e);
@@ -630,6 +698,15 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
         return;
     }
 
+    // 获取 appid 用于缓存失效
+    let appid = match req.headers().get("appid") {
+        Some(h) => match h.to_str() {
+            Ok(s) => s.parse::<u64>().unwrap_or(0),
+            Err(_) => 0,
+        },
+        None => 0,
+    };
+
     let result = sqlx::query("UPDATE u_fen_event SET state = ? WHERE id = ?")
         .bind(&edit_state_req.state)
         .bind(edit_state_req.id)
@@ -641,6 +718,10 @@ pub async fn edit_state(req: &mut Request, depot: &mut Depot, res: &mut Response
             if update_result.rows_affected() > 0 {
                 // 失效积分事件缓存
                 app_state.invalidate_fen_event_cache(edit_state_req.id as u64);
+                // 失效积分事件列表缓存
+                if appid > 0 {
+                    app_state.invalidate_fen_event_list_cache(appid);
+                }
 
                 if let Err(e) = add_log(depot, app_state, update_result.rows_affected()).await {
                     tracing::error!("日志记录失败: {}", e);
@@ -697,6 +778,15 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         return;
     }
 
+    // 获取 appid 用于缓存失效
+    let appid = match req.headers().get("appid") {
+        Some(h) => match h.to_str() {
+            Ok(s) => s.parse::<u64>().unwrap_or(0),
+            Err(_) => 0,
+        },
+        None => 0,
+    };
+
     let result = sqlx::query("DELETE FROM u_fen_event WHERE id = ?")
         .bind(del_req.id)
         .execute(db)
@@ -704,13 +794,17 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     match result {
         Ok(delete_result) => {
-            if let Err(e) = add_log(depot, app_state, delete_result.rows_affected()).await {
-                tracing::error!("日志记录失败: {}", e);
-            }
-
             if delete_result.rows_affected() > 0 {
                 // 失效积分事件缓存
                 app_state.invalidate_fen_event_cache(del_req.id as u64);
+                // 失效积分事件列表缓存
+                if appid > 0 {
+                    app_state.invalidate_fen_event_list_cache(appid);
+                }
+
+                if let Err(e) = add_log(depot, app_state, delete_result.rows_affected()).await {
+                    tracing::error!("日志记录失败: {}", e);
+                }
 
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
@@ -779,14 +873,25 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     match result {
         Ok(delete_result) => {
-            if let Err(e) = add_log(depot, app_state, delete_result.rows_affected()).await {
-                tracing::error!("日志记录失败: {}", e);
-            }
-
             if delete_result.rows_affected() > 0 {
                 // 批量失效积分事件缓存
                 let fenids: Vec<u64> = del_all_req.ids.iter().map(|&id| id as u64).collect();
                 app_state.invalidate_fen_event_cache_batch(&fenids);
+                // 获取 appid 并失效列表缓存
+                let appid = match req.headers().get("appid") {
+                    Some(h) => match h.to_str() {
+                        Ok(s) => s.parse::<u64>().unwrap_or(0),
+                        Err(_) => 0,
+                    },
+                    None => 0,
+                };
+                if appid > 0 {
+                    app_state.invalidate_fen_event_list_cache(appid);
+                }
+
+                if let Err(e) = add_log(depot, app_state, delete_result.rows_affected()).await {
+                    tracing::error!("日志记录失败: {}", e);
+                }
 
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {

@@ -271,6 +271,16 @@ async fn handle_user_fen_verify(
         return;
     }
 
+    // 开启事务，保证订单创建和积分扣减原子性
+    let mut tx = match db.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            tracing::error!("开启事务失败: {}", e);
+            render_error(res, "验证失败", 201, app_key);
+            return;
+        }
+    };
+
     // 创建订单
     let insert_result = sqlx::query(
         "INSERT INTO u_fen_order (fid, uid, name, fen, vip, time, appid, mark) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
@@ -283,10 +293,13 @@ async fn handle_user_fen_verify(
     .bind(current_time)
     .bind(appid)
     .bind(fo_mark)
-    .execute(db)
+    .execute(&mut *tx)
     .await;
 
     if insert_result.is_err() {
+        if let Err(re) = tx.rollback().await {
+            tracing::error!("事务回滚失败: {}", re);
+        }
         render_error(res, "验证失败，请重试", 201, app_key);
         return;
     }
@@ -298,24 +311,30 @@ async fn handle_user_fen_verify(
         } else {
             current_time + fen_event.vip
         };
-        sqlx::query("UPDATE u_user SET fen = ?, vip = ? WHERE id = ? AND appid = ?")
-            .bind(user_fen - fen_event.fen)
+        sqlx::query("UPDATE u_user SET fen = fen - ?, vip = ? WHERE id = ? AND appid = ?")
+            .bind(fen_event.fen)
             .bind(new_vip)
             .bind(uid)
             .bind(appid)
-            .execute(db)
+            .execute(&mut *tx)
             .await
     } else {
         sqlx::query("UPDATE u_user SET fen = fen - ? WHERE id = ? AND appid = ?")
             .bind(fen_event.fen)
             .bind(uid)
             .bind(appid)
-            .execute(db)
+            .execute(&mut *tx)
             .await
     };
 
     match update_result {
         Ok(_) => {
+            if let Err(e) = tx.commit().await {
+                tracing::error!("事务提交失败: {}", e);
+                render_error(res, "验证失败", 201, app_key);
+                return;
+            }
+
             // 记录日志
             let _ = sqlx::query(
                 "INSERT INTO u_logs (ug, uid, type, details, time, ip, appid) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -334,6 +353,9 @@ async fn handle_user_fen_verify(
         }
         Err(e) => {
             tracing::error!("更新用户积分失败: {}", e);
+            if let Err(re) = tx.rollback().await {
+                tracing::error!("事务回滚失败: {}", re);
+            }
             render_error(res, "验证失败", 201, app_key);
         }
     }
@@ -386,6 +408,16 @@ async fn handle_kami_fen_verify(
         return;
     }
 
+    // 开启事务
+    let mut tx = match db.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            tracing::error!("开启事务失败: {}", e);
+            render_error(res, "验证失败", 201, app_key);
+            return;
+        }
+    };
+
     // 创建订单
     let insert_result = sqlx::query(
         "INSERT INTO u_fen_order (fid, uid, name, fen, vip, time, appid, mark) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
@@ -398,10 +430,13 @@ async fn handle_kami_fen_verify(
     .bind(current_time)
     .bind(appid)
     .bind(fo_mark)
-    .execute(db)
+    .execute(&mut *tx)
     .await;
 
     if insert_result.is_err() {
+        if let Err(re) = tx.rollback().await {
+            tracing::error!("事务回滚失败: {}", re);
+        }
         render_error(res, "验证失败，请重试", 201, app_key);
         return;
     }
@@ -412,11 +447,17 @@ async fn handle_kami_fen_verify(
             .bind(fen_event.fen)
             .bind(uid)
             .bind(appid)
-            .execute(db)
+            .execute(&mut *tx)
             .await;
 
     match update_result {
         Ok(_) => {
+            if let Err(e) = tx.commit().await {
+                tracing::error!("事务提交失败: {}", e);
+                render_error(res, "验证失败", 201, app_key);
+                return;
+            }
+
             // 记录日志
             let _ = sqlx::query(
                 "INSERT INTO u_logs (ug, uid, type, details, time, ip, appid) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -435,6 +476,9 @@ async fn handle_kami_fen_verify(
         }
         Err(e) => {
             tracing::error!("更新卡密积分失败: {}", e);
+            if let Err(re) = tx.rollback().await {
+                tracing::error!("事务回滚失败: {}", re);
+            }
             render_error(res, "验证失败", 201, app_key);
         }
     }

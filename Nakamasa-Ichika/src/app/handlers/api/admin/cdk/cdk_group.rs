@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::app::utils::response::ApiResponse;
 use crate::core::zero_copy::StringBuilder;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct CDKGroupItem {
     id: u64,
     name: String,
@@ -50,6 +50,15 @@ pub async fn get_all_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
         }
     };
 
+    // 查通用缓存
+    let cache_key = format!("cdk_group:{}", appid);
+    if let Some(cached) = app_state.generic_cache.get(&cache_key) {
+        if let Ok(list) = serde_json::from_value::<Vec<CDKGroupItem>>(cached) {
+            res.render(Json(ApiResponse::success("成功", Some(list))));
+            return;
+        }
+    }
+
     let result = sqlx::query_as::<_, (u64, String)>(
         "SELECT id, name FROM u_cdk_group WHERE appid = ? ORDER BY id DESC",
     )
@@ -66,6 +75,10 @@ pub async fn get_all_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
                     name: row.1,
                 })
                 .collect();
+            // 写入缓存
+            if let Ok(json) = serde_json::to_value(&list) {
+                app_state.generic_cache.set(cache_key, json);
+            }
             res.render(Json(ApiResponse::success("成功", Some(list))));
         }
         Err(e) => {
@@ -365,6 +378,8 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match insert_result {
         Ok(result) => {
             if result.rows_affected() > 0 {
+                // CDK 分组新增，失效全部分组缓存
+                app_state.invalidate_generic_cache(&format!("cdk_group:{}", appid));
                 res.render(Json(ApiResponse::success_msg("添加成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("添加失败", 201)));
@@ -467,6 +482,8 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // CDK 分组编辑，失效全部分组缓存
+                app_state.invalidate_generic_cache(&format!("cdk_group:{}", appid));
                 res.render(Json(ApiResponse::success_msg("编辑成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("编辑失败", 201)));
@@ -517,6 +534,8 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // CDK 分组删除，清空通用缓存（分组可能属于不同 appid）
+                app_state.clear_generic_cache();
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("删除失败", 201)));
@@ -582,6 +601,8 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // CDK 分组批量删除，清空通用缓存（分组可能属于不同 appid）
+                app_state.clear_generic_cache();
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("删除失败", 201)));

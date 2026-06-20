@@ -37,7 +37,7 @@ struct SearchOptions {
 }
 
 /// 列表项
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct BlocklistItem {
     id: u64,
     #[serde(rename = "type")]
@@ -48,7 +48,7 @@ struct BlocklistItem {
 }
 
 /// 分页响应
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct PageResponse {
     #[serde(rename = "currentPage")]
     current_page: u32,
@@ -121,18 +121,34 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     let size = list_req.size.max(1);
     let offset = (page - 1) * size;
 
+    // 检查是否带有搜索条件 — 有搜索时跳过缓存直接查 DB
+    let is_search = list_req
+        .so
+        .as_ref()
+        .is_some_and(|so| !so.keyword.is_empty());
+
+    if !is_search {
+        // 无搜索时尝试从 generic_cache 获取缓存
+        let cache_key = format!("blk_list:{}:{}:{}", appid, page, size);
+        if let Some(cached) = app_state.generic_cache.get(&cache_key) {
+            if let Ok(page_resp) = serde_json::from_value::<PageResponse>(cached) {
+                res.render(Json(ApiResponse::success("成功", Some(page_resp))));
+                return;
+            }
+        }
+    }
+
     // 构建查询条件
     let mut where_conditions = vec!["(appid = ? OR appid IS NULL)".to_string()];
     let _where_params: Vec<i64> = vec![appid as i64];
     let mut keyword_param: Option<String> = None;
 
     // 处理搜索条件
-    if let Some(ref so) = list_req.so
-        && !so.keyword.is_empty()
-    {
-        // 但数据库用的是 type + val 结构，所以改为: (val LIKE ?)
-        where_conditions.push("val LIKE ?".to_string());
-        keyword_param = Some(format!("%{}%", so.keyword));
+    if is_search {
+        if let Some(ref so) = list_req.so {
+            where_conditions.push("val LIKE ?".to_string());
+            keyword_param = Some(format!("%{}%", so.keyword));
+        }
     }
 
     let where_clause = where_conditions.join(" AND ");
@@ -371,6 +387,8 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             }
 
             tracing::info!("blocklist/add 成功, id={}", add_id);
+            // 黑名单变更，清空通用缓存（含黑名单分页缓存）
+            app_state.clear_generic_cache();
             res.render(Json(ApiResponse::success_msg("添加成功")));
         }
         Err(e) => {
@@ -519,6 +537,8 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                 .await;
             }
 
+            // 黑名单变更，清空通用缓存（含黑名单分页缓存）
+            app_state.clear_generic_cache();
             res.render(Json(ApiResponse::success_msg("编辑成功")));
         }
         Err(e) => {
@@ -615,6 +635,8 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             }
 
             if r.rows_affected() > 0 {
+                // 黑名单变更，清空通用缓存（含黑名单分页缓存）
+                app_state.clear_generic_cache();
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("删除失败", 201)));
@@ -724,6 +746,8 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             }
 
             if r.rows_affected() > 0 {
+                // 黑名单批量删除，清空通用缓存（含黑名单分页缓存）
+                app_state.clear_generic_cache();
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("删除失败", 201)));

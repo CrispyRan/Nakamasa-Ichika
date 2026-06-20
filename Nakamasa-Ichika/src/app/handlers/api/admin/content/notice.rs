@@ -91,6 +91,15 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     let page_size = list_req.size.unwrap_or(10).max(1);
     let offset = (page - 1) * page_size;
 
+    // ========== 首页缓存 ==========
+    if page == 1 {
+        let cache_key = format!("notice_list:{}", appid);
+        if let Some(cached) = app_state.generic_cache.get(&cache_key) {
+            res.render(Json(ApiResponse::success("成功", Some(cached))));
+            return;
+        }
+    }
+
     // 查询公告列表
     let query = "SELECT N.id, N.aid, N.visit, N.content, N.time, N.appid, A.notes FROM u_app_notice AS N LEFT JOIN u_admin AS A ON (N.aid=A.id) WHERE N.appid = ? OR N.appid IS NULL ORDER BY N.id DESC LIMIT ? OFFSET ?";
 
@@ -140,6 +149,16 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
                 page_total,
                 data_total,
             };
+
+            // 首页查询结果写入缓存
+            if page == 1 {
+                if let Ok(cached_value) = serde_json::to_value(&response) {
+                    app_state.generic_cache.set(
+                        format!("notice_list:{}", appid),
+                        cached_value,
+                    );
+                }
+            }
 
             res.render(Json(ApiResponse::success("成功", Some(response))));
         }
@@ -234,6 +253,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         Ok(result) => {
             if result.rows_affected() > 0 {
                 app_state.invalidate_app_runtime_cache(appid);
+                app_state.invalidate_generic_cache(&format!("notice_list:{}", appid));
                 res.render(Json(ApiResponse::success_msg("添加成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("添加失败", 201)));
@@ -287,6 +307,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         Ok(r) => {
             if r.rows_affected() > 0 {
                 app_state.invalidate_app_runtime_cache(0);
+                app_state.invalidate_generic_cache("notice_list:0");
                 res.render(Json(ApiResponse::success_msg("编辑成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("编辑失败", 201)));
@@ -338,6 +359,7 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         Ok(r) => {
             if r.rows_affected() > 0 {
                 app_state.invalidate_app_runtime_cache(0);
+                app_state.invalidate_generic_cache("notice_list:0");
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("删除失败", 201)));

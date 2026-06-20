@@ -122,6 +122,9 @@ pub async fn logout(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     // 删除token
     let _ = app_state.redis_util.del(redis_pool, &token_key).await;
 
+    // 删除L1 token缓存
+    app_state.token_cache.remove(&AppState::token_cache_key(&logout_req.token));
+
     // 删除设备在线状态
     let udid_hash_bytes = md5_hex(udid.as_bytes());
     let udid_hash = md5_to_str(&udid_hash_bytes);

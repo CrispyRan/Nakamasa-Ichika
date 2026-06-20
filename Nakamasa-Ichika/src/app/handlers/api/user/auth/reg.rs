@@ -430,6 +430,16 @@ pub async fn register(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         }
     }
 
+    // 开启事务
+    let mut tx = match db.begin().await {
+        Ok(tx) => tx,
+        Err(e) => {
+            tracing::error!("开启事务失败: {}", e);
+            render_error(res, "注册失败", 201, app_key);
+            return;
+        }
+    };
+
     // 插入新用户
     // 根据注册方式设置对应字段，其他字段为NULL
     let acctno: Option<&str> = if reg_way == "wordnum" {
@@ -462,7 +472,7 @@ pub async fn register(req: &mut Request, depot: &mut Depot, res: &mut Response) 
     .bind(&reg_req.udid)
     .bind(appid)
     .bind(inviter_id)
-    .execute(db)
+    .execute(&mut *tx)
     .await;
 
     match insert_result {
@@ -470,7 +480,7 @@ pub async fn register(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             if result.rows_affected() > 0 {
                 tracing::debug!("[注册调试] 注册成功: uid={}", result.last_insert_id());
 
-                // 记录日志
+                // 记录日志（在事务内）
                 if let Err(e) = sqlx::query(
                     "INSERT INTO u_logs (ug, uid, type, state, time, ip, appid) VALUES (?, ?, ?, ?, ?, ?, ?)"
                 )
@@ -481,18 +491,30 @@ pub async fn register(req: &mut Request, depot: &mut Depot, res: &mut Response) 
                 .bind(current_time)
                 .bind(ip)
                 .bind(appid)
-                .execute(db)
+                .execute(&mut *tx)
                 .await {
                     tracing::error!("日志写入失败: {}", e);
                 }
 
+                if let Err(e) = tx.commit().await {
+                    tracing::error!("事务提交失败: {}", e);
+                    render_error(res, "注册失败", 201, app_key);
+                    return;
+                }
+
                 render_success_msg(res, app_key);
             } else {
+                if let Err(re) = tx.rollback().await {
+                    tracing::error!("事务回滚失败: {}", re);
+                }
                 render_error(res, "注册失败，请重试", 201, app_key);
             }
         }
         Err(e) => {
             tracing::error!("[注册调试] 注册失败: {}", e);
+            if let Err(re) = tx.rollback().await {
+                tracing::error!("事务回滚失败: {}", re);
+            }
             render_error(res, "注册失败，请重试", 201, app_key);
         }
     }

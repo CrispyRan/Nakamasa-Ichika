@@ -123,7 +123,7 @@ pub async fn statistics(req: &mut Request, depot: &mut Depot, res: &mut Response
     }
 
     // 获取appid（从Header获取，必须）
-    let appid: u64 = match req.headers().get("appid") {
+    let appid_from_header: u64 = match req.headers().get("appid") {
         Some(h) => match h.to_str() {
             Ok(s) => match s.parse::<u64>() {
                 Ok(num) => num,
@@ -142,6 +142,18 @@ pub async fn statistics(req: &mut Request, depot: &mut Depot, res: &mut Response
             return;
         }
     };
+
+    // 验证管理员对该 appid 有访问权限
+    if let Some(admin_info) = depot.get::<crate::app::middleware::admin_auth::AdminInfo>("admin_info").ok() {
+        if let Some(admin_appid) = admin_info.appid {
+            if admin_appid != appid_from_header {
+                res.render(Json(ApiResponse::<()>::error("没有该应用的访问权限", 201)));
+                return;
+            }
+        }
+    }
+
+    let appid = appid_from_header;
 
     // 计算时间范围
     let (start_time, end_time) = if stat_req.time == "today" {
@@ -472,6 +484,27 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
+    // 获取appid（用于失效统计面板缓存）
+    let appid: u64 = match req.headers().get("appid") {
+        Some(h) => match h.to_str() {
+            Ok(s) => match s.parse::<u64>() {
+                Ok(id) => id,
+                Err(_) => {
+                    res.render(Json(ApiResponse::<()>::error("APPID格式错误", 201)));
+                    return;
+                }
+            },
+            Err(_) => {
+                res.render(Json(ApiResponse::<()>::error("APPID格式错误", 201)));
+                return;
+            }
+        },
+        None => {
+            res.render(Json(ApiResponse::<()>::error("APPID不能为空", 201)));
+            return;
+        }
+    };
+
     let result = sqlx::query("DELETE FROM u_order WHERE id = ?")
         .bind(del_req.id)
         .execute(db)
@@ -480,6 +513,8 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     match result {
         Ok(r) => {
             if r.rows_affected() > 0 {
+                // 订单删除，失效统计面板缓存
+                app_state.invalidate_stats_cache(appid);
                 res.render(Json(ApiResponse::success_msg("删除成功")));
             } else {
                 res.render(Json(ApiResponse::<()>::error("删除失败", 201)));

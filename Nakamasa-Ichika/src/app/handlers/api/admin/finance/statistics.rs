@@ -4,14 +4,14 @@
 use chrono::{Duration, Utc};
 use deadpool_redis::redis;
 use salvo::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use crate::app::utils::response::ApiResponse;
 use crate::core::app_state::AppState;
 use sqlx::Row;
 use std::sync::Arc;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct UserStatistics {
     count: i64,
     #[serde(rename = "onLine")]
@@ -23,14 +23,14 @@ struct UserStatistics {
     census: Vec<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct KamiStatistics {
     count: i64,
     use_count: i64,
     census: Vec<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct OrderStatistics {
     count: i64,
     money_sum: f64,
@@ -43,7 +43,7 @@ struct OrderStatistics {
     census: Vec<i64>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct StatisticsData {
     user: UserStatistics,
     order: OrderStatistics,
@@ -402,7 +402,7 @@ async fn get_order_statistics(
 }
 
 #[handler]
-pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+pub async fn get(_req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let app_state = match depot.obtain::<Arc<AppState>>() {
         Ok(s) => s,
         Err(_) => {
@@ -410,16 +410,17 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             return;
         }
     };
-        let db = match app_state.get_db() {
-            Some(pool) => pool,
-            None => {
-                res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
-                                    return;
-            }
-        };
+    let db = match app_state.get_db() {
+        Some(pool) => pool,
+        None => {
+            res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+            return;
+        }
+    };
+    let redis_pool = &app_state.redis_pool;
 
     // 获取appid
-    let appid = match req.headers().get("appid") {
+    let appid: u64 = match _req.headers().get("appid") {
         Some(h) => match h.to_str() {
             Ok(s) => match s.parse::<u64>() {
                 Ok(id) => id,
@@ -439,7 +440,7 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
-    // 获取应用类型
+    // 获取应用类型（轻量查询，用于决定 CDK 统计类型）
     let app_type: String = match sqlx::query_scalar("SELECT app_type FROM u_app WHERE id = ?")
         .bind(appid)
         .fetch_optional(db)
@@ -457,16 +458,26 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
-    // 优化：并行执行订单统计和用户统计查询
+    // 查缓存（聚合结果以 JSON Value 缓存，短 TTL 30s 保一致性）
+    if let Some(cached_value) = app_state.stats_cache.get(&appid) {
+        match serde_json::from_value::<StatisticsData>(cached_value) {
+            Ok(data) => {
+                res.render(Json(ApiResponse::success("成功", Some(data))));
+                return;
+            }
+            Err(e) => {
+                tracing::warn!("统计面板缓存反序列化失败，重新计算: {}", e);
+                // 缓存数据异常，继续往下重新计算
+            }
+        }
+    }
 
-    let redis_pool = &app_state.redis_pool;
-
+    // 缓存未命中，并行执行订单和用户统计查询
     let (order_result, user_result) = tokio::join!(
         get_order_statistics(appid, db),
         get_user_statistics(appid, db, redis_pool)
     );
 
-    // 获取订单统计
     let order = match order_result {
         Ok(stats) => stats,
         Err(e) => {
@@ -476,7 +487,6 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
-    // 获取用户统计
     let user = match user_result {
         Ok(stats) => stats,
         Err(e) => {
@@ -486,7 +496,6 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
-    // 获取卡密统计
     let kami = if app_type == "user" {
         match get_cdk_user_statistics(appid, db).await {
             Ok(stats) => stats,
@@ -508,6 +517,11 @@ pub async fn get(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     };
 
     let data = StatisticsData { user, order, kami };
+
+    // 写入缓存
+    if let Ok(cached_value) = serde_json::to_value(&data) {
+        app_state.stats_cache.set(appid, cached_value);
+    }
 
     res.render(Json(ApiResponse::success("成功", Some(data))));
 }

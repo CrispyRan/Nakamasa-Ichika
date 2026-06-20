@@ -152,6 +152,14 @@ pub trait RedisBackend: Send + Sync {
     /// 发布消息
     async fn publish(&self, channel: &str, message: &str) -> Result<(), RedisError>;
 
+    /// 订阅 Redis pub/sub 频道
+    ///
+    /// 返回 (channel, message) 元组的接收器
+    async fn subscribe(
+        &self,
+        channels: &[String],
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<(String, String)>, RedisError>;
+
     /// 执行 Lua 脚本
     async fn eval(&self, script: &str, keys: &[&str], args: &[&str]) -> Result<String, RedisError>;
 
@@ -350,6 +358,15 @@ impl RedisBackend for MockRedisBackend {
 
     async fn publish(&self, _channel: &str, _message: &str) -> Result<(), RedisError> {
         Ok(())
+    }
+
+    async fn subscribe(
+        &self,
+        _channels: &[String],
+    ) -> Result<tokio::sync::mpsc::UnboundedReceiver<(String, String)>, RedisError> {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        drop(tx);
+        Ok(rx)
     }
 
     async fn eval(

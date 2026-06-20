@@ -288,6 +288,29 @@ fn validate_sql_security(sql: &str) -> Result<(), String> {
         }
     }
 
+    // 验证所有引用的表必须以 u_ 前缀开头（不支持系统表）
+    let table_patterns = ["FROM ", "JOIN ", "UPDATE ", "INTO ", "TABLE "];
+    for keyword in table_patterns {
+        let mut search_start = 0;
+        while let Some(pos) = upper[search_start..].find(keyword) {
+            let after_keyword = search_start + pos + keyword.len();
+            let after_keyword = after_keyword.min(upper.len());
+            let remaining = &upper[after_keyword..];
+            let table_end = remaining
+                .find(|c: char| !c.is_alphanumeric() && c != '_' && c != '`')
+                .unwrap_or(remaining.len());
+            let table_name = &remaining[..table_end];
+            let table_name = table_name.trim_matches('`');
+            if !table_name.is_empty()
+                && !table_name.starts_with("U_")
+                && !table_name.starts_with("u_")
+            {
+                return Err(format!("只允许访问 u_ 前缀的表: {}", table_name));
+            }
+            search_start = after_keyword + table_end;
+        }
+    }
+
     // 禁止系统表
     let system_tables = ["INFORMATION_SCHEMA", "MYSQL", "PERFORMANCE_SCHEMA", "SYS"];
     for sys in system_tables {

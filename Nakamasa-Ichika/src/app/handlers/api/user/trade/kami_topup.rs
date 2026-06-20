@@ -210,6 +210,37 @@ pub async fn kami_topup(req: &mut Request, depot: &mut Depot, res: &mut Response
                 }
             };
 
+            // 在事务内重新查询卡密（带行锁），防止并发竞态
+            let recheck_used = if app_info.app_type == "user" {
+                sqlx::query_scalar::<_, Option<i64>>(
+                    "SELECT use_uid FROM u_cdk_user WHERE id = ? AND appid = ? FOR UPDATE"
+                )
+                .bind(kami.id).bind(appid)
+                .fetch_optional(&mut *tx).await
+                    .ok()
+                    .flatten()
+                    .flatten()
+                    .is_some()
+            } else {
+                sqlx::query_scalar::<_, Option<i64>>(
+                    "SELECT use_id FROM u_cdk_kami WHERE id = ? AND appid = ? FOR UPDATE"
+                )
+                .bind(kami.id).bind(appid)
+                .fetch_optional(&mut *tx).await
+                    .ok()
+                    .flatten()
+                    .flatten()
+                    .is_some()
+            };
+
+            if recheck_used {
+                if let Err(re) = tx.rollback().await {
+                    tracing::error!("卡密充值事务回滚失败: error={}", re);
+                }
+                render_error(res, "卡密已被使用", 141, app_key);
+                return;
+            }
+
             // 根据卡密类型和用户类型更新
             let update_result = if app_info.app_type == "user" {
                 process_user_topup(&mut tx, uid, appid, &kami, user_vip, current_time).await
@@ -219,13 +250,13 @@ pub async fn kami_topup(req: &mut Request, depot: &mut Depot, res: &mut Response
 
             match update_result {
                 Ok(_) => {
-                    // 更新卡密使用状态
+                    // 更新卡密使用状态（带 use_uid IS NULL 守卫防止并发重复使用）
                     let cdk_update = if app_info.app_type == "user" {
-                        sqlx::query("UPDATE u_cdk_user SET use_uid = ?, use_time = ?, use_ip = ? WHERE id = ? AND appid = ?")
+                        sqlx::query("UPDATE u_cdk_user SET use_uid = ?, use_time = ?, use_ip = ? WHERE id = ? AND appid = ? AND use_uid IS NULL")
                             .bind(uid).bind(current_time).bind(ip).bind(kami.id).bind(appid)
                             .execute(&mut *tx).await
                     } else {
-                        sqlx::query("UPDATE u_cdk_kami SET use_id = ?, use_time = ?, use_ip = ? WHERE id = ? AND appid = ?")
+                        sqlx::query("UPDATE u_cdk_kami SET use_id = ?, use_time = ?, use_ip = ? WHERE id = ? AND appid = ? AND use_id IS NULL")
                             .bind(uid).bind(current_time).bind(ip).bind(kami.id).bind(appid)
                             .execute(&mut *tx).await
                     };

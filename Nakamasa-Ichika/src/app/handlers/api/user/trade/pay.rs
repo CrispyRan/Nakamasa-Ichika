@@ -356,6 +356,36 @@ pub async fn pay(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     // 确定支付模式
     let pay_mode = pay_req.mode.as_deref().unwrap_or("h5");
 
+    // 先持久化订单，确保支付回调时有订单记录可查
+    let inviter_id_val = order_data.get("inviter_id").and_then(|v| v.as_i64());
+    let divide_money_val = order_data.get("divide_money").and_then(|v| v.as_f64());
+
+    let insert_result = sqlx::query(
+        r#"
+        INSERT INTO u_order (uid, gid, order_no, name, money, type, val, payment, add_time, appid, inviter_id, divide_money)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        "#
+    )
+    .bind(uid)
+    .bind(gid)
+    .bind(&order_no)
+    .bind(&goods_name)
+    .bind(money)
+    .bind(&goods_type)
+    .bind(val)
+    .bind(&pay_type)
+    .bind(current_time)
+    .bind(appid)
+    .bind(inviter_id_val)
+    .bind(divide_money_val)
+    .execute(db)
+    .await;
+
+    if insert_result.is_err() {
+        render_error(res, "订单创建失败", 201, app_key);
+        return;
+    }
+
     // 获取支付配置并调用支付插件
     let pay_result = if pay_type == "ali" {
         if app_info.alipay_state != "on" {
@@ -508,37 +538,5 @@ pub async fn pay(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
-    let inviter_id_val = order_data.get("inviter_id").and_then(|v| v.as_i64());
-    let divide_money_val = order_data.get("divide_money").and_then(|v| v.as_f64());
-
-    let insert_result = sqlx::query(
-        r#"
-        INSERT INTO u_order (uid, gid, order_no, name, money, type, val, payment, add_time, appid, inviter_id, divide_money)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        "#
-    )
-    .bind(uid)
-    .bind(gid)
-    .bind(&order_no)
-    .bind(&pay_info.name)
-    .bind(pay_info.money)
-    .bind(&goods_type)
-    .bind(val)
-    .bind(&pay_type)
-    .bind(current_time)
-    .bind(appid)
-    .bind(inviter_id_val)
-    .bind(divide_money_val)
-    .execute(db)
-    .await;
-
-    match insert_result {
-        Ok(_) => {
-            render_success(res, app_key, Some(pay_info), app_info.mi.as_ref());
-        }
-        Err(e) => {
-            tracing::error!("订单创建失败: {}", e);
-            render_error(res, "订单创建失败", 201, app_key);
-        }
-    }
+    render_success(res, app_key, Some(pay_info), app_info.mi.as_ref());
 }

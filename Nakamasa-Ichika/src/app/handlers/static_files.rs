@@ -238,11 +238,15 @@ async fn send_file_content(content: &[u8], file_path: &Path, res: &mut Response)
     let etag = md5_to_str(&etag_bytes);
 
     // 设置响应头
-    res.headers_mut()
-        .insert("Content-Type", mime_type.parse().unwrap());
-    res.headers_mut()
-        .insert("Cache-Control", "public, max-age=3600".parse().unwrap());
-    res.headers_mut().insert("ETag", etag.parse().unwrap());
+    if let Ok(val) = mime_type.parse() {
+        res.headers_mut().insert("Content-Type", val);
+    }
+    if let Ok(val) = "public, max-age=3600".parse() {
+        res.headers_mut().insert("Cache-Control", val);
+    }
+    if let Ok(val) = etag.parse() {
+        res.headers_mut().insert("ETag", val);
+    }
 
     // 将字节数据转换为字符串
     let text = String::from_utf8_lossy(content).to_string();
@@ -259,11 +263,15 @@ async fn send_embedded_file(embedded: EmbeddedFile, file_path: &Path, res: &mut 
     let etag = md5_to_str(&etag_bytes);
 
     // 设置响应头
-    res.headers_mut()
-        .insert("Content-Type", mime_type.parse().unwrap());
-    res.headers_mut()
-        .insert("Cache-Control", "public, max-age=3600".parse().unwrap());
-    res.headers_mut().insert("ETag", etag.parse().unwrap());
+    if let Ok(val) = mime_type.parse() {
+        res.headers_mut().insert("Content-Type", val);
+    }
+    if let Ok(val) = "public, max-age=3600".parse() {
+        res.headers_mut().insert("Cache-Control", val);
+    }
+    if let Ok(val) = etag.parse() {
+        res.headers_mut().insert("ETag", val);
+    }
 
     // 将字节数据转换为字符串
     let text = String::from_utf8_lossy(embedded.data.as_ref()).to_string();
@@ -548,15 +556,20 @@ pub async fn upload_file_handler(req: &mut Request, depot: &mut Depot, res: &mut
     }
 
     // 设置响应头
-    res.headers_mut()
-        .insert("Content-Type", mime_type.parse().unwrap());
-    res.headers_mut()
-        .insert("Cache-Control", "public, max-age=86400".parse().unwrap()); // 缓存1天
-    res.headers_mut().insert("ETag", etag.parse().unwrap());
+    if let Ok(val) = mime_type.parse() {
+        res.headers_mut().insert("Content-Type", val);
+    }
+    if let Ok(val) = "public, max-age=86400".parse() {
+        res.headers_mut().insert("Cache-Control", val);
+    }
+    if let Ok(val) = etag.parse() {
+        res.headers_mut().insert("ETag", val);
+    }
 
     // 安全头：防止MIME类型嗅探
-    res.headers_mut()
-        .insert("X-Content-Type-Options", "nosniff".parse().unwrap());
+    if let Ok(val) = "nosniff".parse() {
+        res.headers_mut().insert("X-Content-Type-Options", val);
+    }
 
     // 直接返回二进制数据
     let _ = res.write_body(content);

@@ -196,35 +196,41 @@ impl Handler for AppContext {
             return;
         }
 
-        // 查询应用信息（先查 Nakamasa-utils ShardedCacheV2，未命中再查数据库）
+        // 查询应用信息（先查缓存，未命中再查数据库）
+        // 优化：移除 set_and_get 的冗余 get 调用，直接使用 set
         let app_cache_key = format!(
             "{}:{}:{}",
             appid,
             ver_key.as_deref().unwrap_or(""),
             ver_val.as_deref().unwrap_or("")
         );
-        let app_info = if let Some(info) = app_state.app_info_cache.get(&app_cache_key) {
-            info
-        } else {
-            match fetch_app_info_with_version(
-                &app_state,
-                appid,
-                ver_key.as_deref(),
-                ver_val.as_deref(),
-            )
-            .await
-            {
-                Ok(Some(info)) => app_state.app_info_cache.set_and_get(app_cache_key, info),
-                Ok(None) => {
-                    res.render(Json(ApiResponse::<()>::error_static("appid error", 201)));
-                    ctrl.skip_rest();
-                    return;
-                }
-                Err(e) => {
-                    tracing::error!("数据库查询失败: {}", e);
-                    res.render(Json(ApiResponse::<()>::error_static("数据库错误", 201)));
-                    ctrl.skip_rest();
-                    return;
+        let app_info = match app_state.app_info_cache.get(&app_cache_key) {
+            Some(info) => info,
+            None => {
+                match fetch_app_info_with_version(
+                    &app_state,
+                    appid,
+                    ver_key.as_deref(),
+                    ver_val.as_deref(),
+                )
+                .await
+                {
+                    Ok(Some(info)) => {
+                        // 直接 set，无需再次 get（避免了 set_and_get 的冗余查询）
+                        app_state.app_info_cache.set(app_cache_key.clone(), info.clone());
+                        info
+                    }
+                    Ok(None) => {
+                        res.render(Json(ApiResponse::<()>::error_static("appid error", 201)));
+                        ctrl.skip_rest();
+                        return;
+                    }
+                    Err(e) => {
+                        tracing::error!("数据库查询失败: {}", e);
+                        res.render(Json(ApiResponse::<()>::error_static("数据库错误", 201)));
+                        ctrl.skip_rest();
+                        return;
+                    }
                 }
             }
         };
@@ -633,7 +639,10 @@ async fn fetch_app_info_with_version(
     .bind(version_info.as_ref().map(|v| v.3))
     .bind(version_info.as_ref().map(|v| v.3))
     .bind(appid)
-    .fetch_optional(app_state.get_db().expect("db"))
+    .fetch_optional(match app_state.get_db() {
+        Some(pool) => pool,
+        None => return Ok(None),
+    })
     .await?;
 
     let row = match row {
