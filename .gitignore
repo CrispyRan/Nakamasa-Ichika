@@ -71,10 +71,6 @@ temp/
 # SQL dump files
 *.sql
 
-# GeoIP 数据库文件（需通过 LFS 或手动部署）
-GeoLite2-City.mmdb
-GeoLite2-ASN.mmdb
-
 # Node.js
 test/node_modules/
 node_modules/
