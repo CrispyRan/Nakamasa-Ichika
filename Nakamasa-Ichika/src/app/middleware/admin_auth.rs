@@ -2,9 +2,8 @@
 
 use crate::app::utils::response::ApiResponse;
 use crate::core::AppState;
-use crate::core::md5_optimize::{md5_hex, md5_to_str};
 use crate::core::middleware::get_client_ip;
-use Nakamasa_utils::jwt::JwtBuilder;
+use nakamasa_utils::{decrypt, encrypt, jwt::JwtBuilder};
 use salvo::prelude::*;
 use serde::Serialize;
 use std::sync::Arc;
@@ -223,14 +222,17 @@ impl Handler for AdminAuth {
             }
         };
 
-        // 验证密码 - 栈上MD5计算 + 常量时间比较防止时序攻击
-        let password_hash_bytes = md5_hex(admin.2.as_bytes());
-        let password_hash_str = md5_to_str(&password_hash_bytes);
-        if !constant_time_eq(password_hash_str, pwd) {
+        // 解密 JWT 中的密码并与数据库密码比对
+        let app_code = app_conf.app().code();
+        let decrypted_pwd = decrypt(pwd, app_code).unwrap_or_default();
+        if !constant_time_eq(&decrypted_pwd, &admin.2) {
             res.render(Json(ApiResponse::<()>::error(ERR_TOKEN_EXPIRED, -1)));
             ctrl.skip_rest();
             return;
         }
+
+        // 加密密码用于新的JWT claim（如果需要续期）
+        let encrypted_pwd = encrypt(&admin.2, app_code).unwrap_or_default();
 
         // 构建管理员信息
         let auth = admin.6.as_ref().and_then(|v| serde_json::from_str(v).ok());
@@ -267,7 +269,7 @@ impl Handler for AdminAuth {
                     .set_iss("admin")
                     .add_claim("id", admin.0)
                     .add_claim("ip", ip_str)
-                    .add_claim("pwd", password_hash_str)
+                    .add_claim("pwd", encrypted_pwd.as_str())
                     .build()
             {
                 result.token = Some(TokenRenew {

@@ -922,14 +922,9 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
-    let ids: Vec<i64> = match post_data.get("ids") {
-        Some(v) if v.is_array() => v
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter_map(|id| id.as_i64())
-            .collect(),
-        _ => {
+    let ids: Vec<i64> = match post_data.get("ids").and_then(|v| v.as_array()) {
+        Some(arr) => arr.iter().filter_map(|id| id.as_i64()).collect(),
+        None => {
             res.render(Json(ApiResponse::<()>::error("参数格式有误", 201)));
             return;
         }

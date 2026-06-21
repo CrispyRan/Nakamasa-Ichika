@@ -91,7 +91,7 @@ pub async fn set_acctno(req: &mut Request, depot: &mut Depot, res: &mut Response
     let ip = get_client_ip(req);
 
     // 检查用户是否已设置账号
-    if user_info.acctno.is_some() && !user_info.acctno.as_ref().unwrap().is_empty() {
+    if user_info.acctno.as_ref().is_some_and(|a| !a.is_empty()) {
         render_error(res, "已设置账号", 123, app_key);
         return;
     }

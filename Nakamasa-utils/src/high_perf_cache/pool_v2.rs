@@ -183,7 +183,7 @@ impl Drop for LockFreeStack {
 #[repr(align(128))]
 pub struct FixedSizePoolV2 {
     /// 块大小（数据部分，不含头）
-    block_size: usize,
+    pub block_size: usize,
     /// 总大小（含头）
     total_size: usize,
     /// 池索引
@@ -388,10 +388,10 @@ impl ThreadLocalCache {
     }
 
     /// 清空本地缓存（归还给全局池）
-    fn drain(&mut self, global_pool: &MemoryPoolV2) {
+    fn _drain(&mut self, global_pool: &MemoryPoolV2) {
         for (i, cache) in self.caches.iter_mut().enumerate() {
             for ptr in cache.drain(..) {
-                global_pool.free_with_class(ptr, i);
+                global_pool._free_with_class(ptr, i);
             }
         }
     }
@@ -537,7 +537,7 @@ impl MemoryPoolV2 {
 
     /// 释放到指定类别的池（用于线程本地缓存 drain）
     #[inline(always)]
-    fn free_with_class(&self, ptr: NonNull<u8>, class_idx: usize) {
+    fn _free_with_class(&self, ptr: NonNull<u8>, class_idx: usize) {
         self.pools[class_idx].free(ptr);
     }
 

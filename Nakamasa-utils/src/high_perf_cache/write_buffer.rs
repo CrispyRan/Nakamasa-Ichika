@@ -385,7 +385,7 @@ pub struct WriteBuffer<K, V> {
     /// 主缓冲区
     primary: MpmcQueue<WriteOp<K, V>>,
     /// 备用缓冲区（用于批量刷新）
-    secondary: MpmcQueue<WriteOp<K, V>>,
+    pub secondary: MpmcQueue<WriteOp<K, V>>,
     /// 配置
     config: WriteBufferConfig,
     /// 统计

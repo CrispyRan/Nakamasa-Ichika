@@ -130,6 +130,12 @@ pub mod json_optimize;
 /// 适用于小数据量的高效哈希计算。
 pub mod md5_optimize;
 
+/// 密码哈希
+///
+/// 使用 Argon2id 进行密码哈希，兼容旧版 MD5 验证。
+/// 支持自动检测哈希格式并进行相应验证。
+pub mod password;
+
 /// 零拷贝字符串处理
 ///
 /// 使用 `Cow` 和 `StringBuilder` 减少字符串分配。
@@ -359,23 +365,24 @@ pub async fn run(router: Router, cli_args: CliArgs) -> anyhow::Result<()> {
     tracing::info!("{}", terminal_t("app.starting"));
     tracing::debug!("Terminal language: {}", current_lang());
 
-    // 初始化 GeoIP 数据库
-    // 尝试多个可能的路径
-    let geoip_paths = [
-        "GeoLite2-City.mmdb",
-        "data/GeoLite2-City.mmdb",
-        "/data/data/com.termux/files/home/rust/web/GeoLite2-City.mmdb",
+    // 初始化 GeoIP 数据库（City + ASN）
+    let base_paths = [
+        ".",
+        "data",
+        "/data/data/com.termux/files/home/rust/web",
     ];
     let mut geoip_initialized = false;
-    for path in geoip_paths {
-        if Path::new(path).exists() {
-            match crate::app::handlers::api::user::auth::logon::init_geoip(path) {
+    for base in base_paths {
+        let city_path = format!("{}/GeoLite2-City.mmdb", base);
+        let asn_path = format!("{}/GeoLite2-ASN.mmdb", base);
+        if Path::new(&city_path).exists() {
+            match crate::app::handlers::api::user::auth::logon::init_geoip(&city_path, &asn_path) {
                 Ok(()) => {
                     geoip_initialized = true;
                     break;
                 }
                 Err(e) => {
-                    tracing::warn!("GeoIP 初始化失败 ({}): {}", path, e);
+                    tracing::warn!("GeoIP 初始化失败 ({} + {}): {}", city_path, asn_path, e);
                 }
             }
         }

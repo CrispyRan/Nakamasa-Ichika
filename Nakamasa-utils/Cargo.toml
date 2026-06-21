@@ -1,5 +1,5 @@
 [package]
-name = "Nakamasa-utils"
+name = "nakamasa_utils"
 version = "0.1.0"
 edition = "2024"
 

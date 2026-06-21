@@ -73,8 +73,8 @@ proc-macro2 = "1.0"
 quote = "1.0"
 syn = { version = "2.0", features = ["full", "extra-traits"] }
 
-Nakamasa-utils = { path = "Nakamasa-utils" }
-Nakamasa-proc = { path = "Nakamasa-proc" }
+nakamasa_utils = { path = "Nakamasa-utils" }
+nakamasa_proc = { path = "Nakamasa-proc" }
 
 # JavaScript 引擎 - 在各包的 Cargo.toml 中按平台配置
 rquickjs = { version = "0.8", features = ["chrono", "bindgen"] }

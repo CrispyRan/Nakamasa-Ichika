@@ -1,7 +1,7 @@
 //! Admin login controller
 //! 管理员登录控制器
 
-use Nakamasa_utils::jwt::JwtBuilder;
+use nakamasa_utils::{decrypt, encrypt, jwt::JwtBuilder};
 use salvo::prelude::*;
 use serde::Serialize;
 use std::sync::Arc;
@@ -13,7 +13,6 @@ use crate::app::utils::response::ApiResponse;
 use crate::app::utils::validator::Validator;
 use crate::core::AppState;
 use crate::core::admin_cache::{AdminData, CacheResult};
-use crate::core::md5_optimize::{md5_hex, md5_to_str};
 use crate::core::middleware::get_client_ip;
 
 // 预分配错误消息 - 静态字符串零分配
@@ -32,25 +31,8 @@ static ERR_TOKEN_EXPIRED: &str = "Token已过期或不存在";
 fn current_timestamp() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs() as i64
-}
-
-/// 计算密码哈希 - 使用 md5_optimize 模块
-#[inline]
-fn compute_password_hash(password: &str, salt: &str) -> [u8; 32] {
-    let total_len = password.len() + salt.len();
-    if total_len <= 256 {
-        let mut buf = [0u8; 256];
-        buf[..password.len()].copy_from_slice(password.as_bytes());
-        buf[password.len()..total_len].copy_from_slice(salt.as_bytes());
-        md5_hex(&buf[..total_len])
-    } else {
-        let mut buf = Vec::with_capacity(total_len);
-        buf.extend_from_slice(password.as_bytes());
-        buf.extend_from_slice(salt.as_bytes());
-        md5_hex(&buf)
-    }
 }
 
 /// 从 AdminData 构造 AdminInfo
@@ -100,20 +82,18 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         return;
     }
 
-    // 计算密码哈希
+    // 获取盐值
     let adm_pwd_salt = app_state.config().app().admin().keys();
-    let password_hash = compute_password_hash(&login_req.password, adm_pwd_salt);
-    let password_hash_str = md5_to_str(&password_hash);
 
-    // 使用缓存服务验证登录
+    // 使用缓存服务验证登录（支持 Argon2 和旧 MD5）
     let result = app_state
         .admin_cache
-        .verify_login(&login_req.user, password_hash_str)
+        .verify_login(&login_req.user, &login_req.password, adm_pwd_salt)
         .await;
 
     let admin = match result {
-        CacheResult::Hit(data) => data,  // 缓存命中
-        CacheResult::Miss(data) => data, // 数据库查询成功
+        CacheResult::Hit(data) => data,
+        CacheResult::Miss(data) => data,
         CacheResult::NotFound => {
             res.render(Json(ApiResponse::<()>::error(ERR_WRONG_CREDENTIALS, 201)));
             return;
@@ -125,10 +105,31 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
+    // 旧 MD5 密码登录成功后原地升级为 Argon2id
+    if crate::core::password::is_md5_hash(&admin.password) {
+        if let Ok(new_hash) = crate::core::password::hash_password(&login_req.password) {
+            let db = match app_state.get_db() {
+                Some(pool) => pool,
+                None => {
+                    res.render(Json(ApiResponse::<()>::error(ERR_DB_ERROR, 201)));
+                    return;
+                }
+            };
+            if let Err(e) = sqlx::query("UPDATE u_admin SET password = ? WHERE id = ?")
+                .bind(&new_hash)
+                .bind(admin.id)
+                .execute(db)
+                .await
+            {
+                tracing::error!("管理员密码升级失败: {}", e);
+            }
+        }
+    }
+
     // 创建JWT Token
     let jwt_builder = JwtBuilder::new(adm_pwd_salt, 3);
-    let password_md5_bytes = md5_hex(admin.password.as_bytes());
-    let password_md5_str = md5_to_str(&password_md5_bytes);
+    let app_code = app_state.config().app().code();
+    let encrypted_pwd = encrypt(&admin.password, app_code).unwrap_or_default();
 
     let info = admin_data_to_info(&admin);
     let ip = get_client_ip(req);
@@ -137,7 +138,7 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         .set_iss("admin")
         .add_claim("id", admin.id)
         .add_claim("ip", ip)
-        .add_claim("pwd", password_md5_str)
+        .add_claim("pwd", encrypted_pwd.as_str())
         .build()
     {
         Ok(t) => t,
@@ -260,7 +261,7 @@ pub async fn token_verify(req: &mut Request, depot: &mut Depot, res: &mut Respon
         }
     };
 
-    let pwd: &str = match claims.custom.get("pwd").and_then(|v| v.as_str()) {
+    let pwd_encrypted: &str = match claims.custom.get("pwd").and_then(|v| v.as_str()) {
         Some(p) => p,
         None => {
             res.render(Json(ApiResponse::<()>::error(ERR_TOKEN_INVALID, -1)));
@@ -268,8 +269,12 @@ pub async fn token_verify(req: &mut Request, depot: &mut Depot, res: &mut Respon
         }
     };
 
+    // 解密 JWT 中的密码
+    let app_code = app_state.config().app().code();
+    let pwd = decrypt(pwd_encrypted, app_code).unwrap_or_default();
+
     // 使用缓存服务验证Token
-    let result = app_state.admin_cache.verify_token(admin_id, pwd).await;
+    let result = app_state.admin_cache.verify_token(admin_id, &pwd).await;
 
     let admin = match result {
         CacheResult::Hit(data) => data,
@@ -285,9 +290,9 @@ pub async fn token_verify(req: &mut Request, depot: &mut Depot, res: &mut Respon
         }
     };
 
-    // 构造返回信息
-    let password_md5_bytes = md5_hex(admin.password.as_bytes());
-    let password_md5_str = md5_to_str(&password_md5_bytes);
+    // 加密密码用于新的JWT claim
+    let app_code = app_state.config().app().code();
+    let encrypted_pwd = encrypt(&admin.password, app_code).unwrap_or_default();
 
     let info = TokenVerifyInfo {
         id: admin.id,
@@ -310,7 +315,7 @@ pub async fn token_verify(req: &mut Request, depot: &mut Depot, res: &mut Respon
             .set_iss("admin")
             .add_claim("id", admin_id)
             .add_claim("ip", ip)
-            .add_claim("pwd", password_md5_str)
+            .add_claim("pwd", encrypted_pwd.as_str())
             .build()
     {
         data.token = Some(TokenRenew {

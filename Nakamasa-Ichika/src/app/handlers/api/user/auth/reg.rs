@@ -23,7 +23,6 @@ use crate::app::utils::response::{
 };
 use crate::app::utils::validator::Validator;
 use crate::core::AppState;
-use crate::core::md5_optimize::{md5_hex, md5_to_str};
 use crate::core::middleware::get_client_ip;
 
 /// 注册请求参数
@@ -315,9 +314,15 @@ pub async fn register(req: &mut Request, depot: &mut Depot, res: &mut Response) 
         }
     }
 
-    // 使用优化的MD5计算
-    let password_hash_bytes = md5_hex(reg_req.password.as_bytes());
-    let password_hash = md5_to_str(&password_hash_bytes).to_string();
+    // 使用 Argon2id 加密密码
+    let password_hash = match crate::core::password::hash_password(&reg_req.password) {
+        Ok(h) => h,
+        Err(e) => {
+            tracing::error!("密码加密失败: {}", e);
+            render_error(res, "注册失败", 201, app_key);
+            return;
+        }
+    };
 
     // 初始化注册数据
     let mut initial_vip: i64 = 0;

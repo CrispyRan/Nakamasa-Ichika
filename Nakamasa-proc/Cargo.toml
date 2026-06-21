@@ -1,5 +1,5 @@
 [package]
-name = "Nakamasa-proc"
+name = "nakamasa_proc"
 version = "0.1.0"
 edition = "2024"
 

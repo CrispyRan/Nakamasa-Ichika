@@ -29,6 +29,9 @@ const MAX_FILE_SIZE: u64 = 100 * 1024 * 1024;
 /// 最大请求体大小（字节）- 用于 multipart 表单解析
 const MAX_BODY_SIZE: usize = 100 * 1024 * 1024;
 
+/// 允许的图片扩展名白名单
+const ALLOWED_EXTENSIONS: &[&str] = &["jpg", "jpeg", "png", "gif", "webp", "bmp", "ico"];
+
 /// 生成唯一文件名（保留原始扩展名）
 fn generate_unique_filename(original_name: &str) -> String {
     use chrono::Utc;
@@ -36,11 +39,13 @@ fn generate_unique_filename(original_name: &str) -> String {
     use rand::Rng;
     let random: u32 = rand::thread_rng().r#gen();
 
-    // 提取扩展名
+    // 提取扩展名并验证白名单
     let ext = Path::new(original_name)
         .extension()
         .and_then(|e| e.to_str())
-        .unwrap_or("jpg");
+        .map(|e| e.to_lowercase())
+        .filter(|e| ALLOWED_EXTENSIONS.contains(&e.as_str()))
+        .unwrap_or_else(|| "jpg".to_string());
 
     format!("{}{}.{}", timestamp, random, ext)
 }

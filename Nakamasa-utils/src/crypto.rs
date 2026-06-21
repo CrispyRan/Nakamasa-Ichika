@@ -11,8 +11,8 @@
 //! - GCM 认证标签自动校验密文完整性，防止 padding oracle 攻击
 //! - 解密失败统一返回通用错误消息
 
-use aes::cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit, block_padding::Pkcs7};
-use aes_gcm::aead::{Aead, AeadInPlace, AeadCore, KeyInit, OsRng, generic_array::GenericArray};
+use aes::cipher::{BlockDecryptMut, KeyIvInit, block_padding::Pkcs7};
+use aes_gcm::aead::{AeadInPlace, AeadCore, KeyInit, OsRng, generic_array::GenericArray};
 use aes_gcm::aes::Aes256;
 use base64::{Engine, engine::general_purpose::STANDARD as BASE64};
 use sha3::{Digest, Sha3_256};

@@ -13,13 +13,13 @@ use std::sync::Arc;
 
 /// 虚拟节点
 #[derive(Debug, Clone)]
-struct VirtualNode<T> {
+pub struct VirtualNode<T> {
     /// 哈希值
     hash: u64,
     /// 实际节点
     node: T,
     /// 虚拟节点索引
-    index: usize,
+    pub index: usize,
 }
 
 impl<T> PartialEq for VirtualNode<T> {
@@ -333,7 +333,7 @@ impl<T: Clone + Hash + Eq + std::fmt::Debug + 'static> WeightedConsistentHash<T>
 pub struct ShardMapper<T: Clone + Hash + Eq + std::fmt::Debug + 'static> {
     hash: Arc<ConsistentHash<T>>,
     /// 分片数量
-    shard_count: usize,
+    pub shard_count: usize,
 }
 
 impl<T: Clone + Hash + Eq + std::fmt::Debug + 'static> ShardMapper<T> {

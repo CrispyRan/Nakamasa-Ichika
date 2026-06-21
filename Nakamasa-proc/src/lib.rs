@@ -1,11 +1,5 @@
 //! Nakamasa-proc 过程宏库
 
-// 全局警告抑制
-#![allow(unused)]
-#![allow(non_snake_case)]
-#![allow(non_camel_case_types)]
-#![allow(non_upper_case_globals)]
-
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields, Ident, Token};

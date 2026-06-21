@@ -1,4 +1,4 @@
-use Nakamasa_utils::{decrypt_if_needed, is_encrypted};
+use nakamasa_utils::{decrypt_if_needed, is_encrypted};
 use serde::Deserialize;
 
 #[allow(dead_code)]

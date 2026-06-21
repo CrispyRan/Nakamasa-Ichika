@@ -22,7 +22,6 @@ use crate::app::utils::response::{
 };
 use crate::app::utils::validator::Validator;
 use crate::core::AppState;
-use crate::core::md5_optimize::{md5_hex, md5_to_str};
 use crate::core::middleware::get_client_ip;
 
 #[handler]
@@ -87,23 +86,21 @@ pub async fn modify_pwd(req: &mut Request, depot: &mut Depot, res: &mut Response
     let ip = get_client_ip(req);
     let redis_util = &app_state.redis_util;
 
-    // 计算密码 hash - 使用优化的 MD5 计算
-    let current_hash_bytes = md5_hex(modify_req.password.as_bytes());
-    let current_hash = md5_to_str(&current_hash_bytes);
-    let new_hash_bytes = md5_hex(modify_req.new_password.as_bytes());
-    let new_hash = md5_to_str(&new_hash_bytes);
-
-    // 验证当前密码
-    if current_hash != user_info.password {
+    // 使用 Argon2id 验证当前密码
+    if !crate::core::password::verify_password(&user_info.password, &modify_req.password) {
         render_error(res, "当前密码错误", 132, app_key);
         return;
     }
 
-    // 验证新旧密码不能相同
-    if new_hash == current_hash {
-        render_error(res, "新旧密码不能相同", 133, app_key);
-        return;
-    }
+    // 使用 Argon2id 加密新密码
+    let new_hash = match crate::core::password::hash_password(&modify_req.new_password) {
+        Ok(h) => h,
+        Err(e) => {
+            tracing::error!("密码加密失败: {}", e);
+            render_error(res, "修改失败", 201, app_key);
+            return;
+        }
+    };
 
     // 更新密码 - 根据用户类型选择表
     let result = if user_type == "kami" {

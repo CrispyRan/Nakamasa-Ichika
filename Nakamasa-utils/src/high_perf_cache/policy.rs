@@ -9,7 +9,6 @@
 
 use std::collections::VecDeque;
 use std::time::{Duration, Instant};
-use tracing;
 
 // ============================================================================
 // 淘汰策略 Trait
@@ -369,10 +368,10 @@ impl EvictionStrategy for LruPolicy {
 
 /// LFU 节点
 #[derive(Debug, Clone)]
-struct LfuNode {
-    key: u64,
-    frequency: u64,
-    last_access: Instant,
+pub struct LfuNode {
+    pub key: u64,
+    pub frequency: u64,
+    pub last_access: Instant,
 }
 
 /// LFU 淘汰策略
@@ -455,9 +454,9 @@ pub struct HybridPolicy {
     lru: LruPolicy,
     lfu: LfuPolicy,
     /// LFU 权重
-    lfu_weight: f64,
+    pub lfu_weight: f64,
     /// LRU 权重
-    lru_weight: f64,
+    pub lru_weight: f64,
 }
 
 impl HybridPolicy {

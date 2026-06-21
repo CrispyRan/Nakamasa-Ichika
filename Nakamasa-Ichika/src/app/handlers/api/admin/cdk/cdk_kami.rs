@@ -184,12 +184,13 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
             && !state.is_empty()
         {
             let condition = if state == "y" {
-                format!(" AND (K.ban < {} OR K.ban IS NULL)", now_ts)
+                " AND (K.ban < ? OR K.ban IS NULL)"
             } else {
-                format!(" AND K.ban >= {}", now_ts)
+                " AND K.ban >= ?"
             };
-            query.push_str(&condition);
-            count_query.push_str(&condition);
+            query.push_str(condition);
+            count_query.push_str(condition);
+            params.push(now_ts.to_string());
         }
 
         // 导出状态
@@ -481,7 +482,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             .bind(now)
             .bind("127.0.0.1")
             .bind(appid)
-            .bind(out_state.as_ref().unwrap())
+            .bind(out_state.as_deref().unwrap_or("y"))
             .bind(now)
             .execute(&mut *tx)
             .await
@@ -515,7 +516,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                     tracing::error!("事务回滚失败: {}", rollback_err);
                 }
                 res.render(Json(ApiResponse::<()>::error(
-                    format!("创建失败: 卡密插入出错 - {}", e),
+                    "创建失败: 卡密插入出错".to_string(),
                     201,
                 )));
                 return;
@@ -971,7 +972,15 @@ pub async fn del_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
-    if del_req.ids.is_empty() || del_req.ids.len() > 1000 || del_req.ids.iter().any(|id| *id <= 0) {
+    if del_req.ids.is_empty() {
+        res.render(Json(ApiResponse::<()>::error("删除选中ID有误", 201)));
+        return;
+    }
+    if del_req.ids.len() > 1000 {
+        res.render(Json(ApiResponse::<()>::error("批量操作数量不能超过1000", 201)));
+        return;
+    }
+    if del_req.ids.iter().any(|id| *id <= 0) {
         res.render(Json(ApiResponse::<()>::error("删除选中ID有误", 201)));
         return;
     }

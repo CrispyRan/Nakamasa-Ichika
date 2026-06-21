@@ -21,7 +21,6 @@ use crate::app::utils::response::{
 };
 use crate::app::utils::validator::Validator;
 use crate::core::AppState;
-use crate::core::md5_optimize::{md5_hex, md5_to_str};
 use crate::core::middleware::get_client_ip;
 
 #[handler]
@@ -127,9 +126,15 @@ pub async fn reset_pwd(req: &mut Request, depot: &mut Depot, res: &mut Response)
 
     match user_result {
         Ok(Some((uid, _old_password))) => {
-            // 使用优化的 MD5 计算
-            let new_hash_bytes = md5_hex(reset_req.new_password.as_bytes());
-            let new_hash = md5_to_str(&new_hash_bytes).to_string();
+            // 使用 Argon2id 加密新密码
+            let new_hash = match crate::core::password::hash_password(&reset_req.new_password) {
+                Ok(h) => h,
+                Err(e) => {
+                    tracing::error!("密码加密失败: {}", e);
+                    render_error(res, "重置密码失败", 201, app_key);
+                    return;
+                }
+            };
 
             let result = sqlx::query("UPDATE u_user SET password = ? WHERE id = ? AND appid = ?")
                 .bind(&new_hash)

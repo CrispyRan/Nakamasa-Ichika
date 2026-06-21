@@ -129,7 +129,7 @@ impl CacheStats {
 // ============================================================================
 
 /// 空值标记（用于缓存穿透保护）
-const NULL_MARKER: &str = "__NULL__";
+const _NULL_MARKER: &str = "__NULL__";
 
 // ============================================================================
 // 多级缓存
@@ -170,10 +170,10 @@ struct Stats {
 
 /// 缓存条目（包装值以支持额外信息）
 #[derive(Clone)]
-struct CacheEntry<V> {
+pub struct CacheEntry<V> {
     value: V,
-    created_at: Instant,
-    access_count: u64,
+    pub created_at: Instant,
+    pub access_count: u64,
 }
 
 impl<V> CacheEntry<V> {

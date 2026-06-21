@@ -302,8 +302,8 @@ impl WyHash {
         let seed = self.seed;
         let mut see1 = seed;
 
-        let mut len = data.len();
-        let mut data = data;
+        let len = data.len();
+        let data = data;
 
         if len == 0 {
             self.state = Self::wymum(seed ^ Self::P4, seed);
@@ -668,8 +668,8 @@ impl std::hash::BuildHasher for FastHashBuilder {
 /// 快速哈希器
 pub struct FastHasher {
     inner: FastHasherInner,
-    seed: u64,
-    algorithm: HashAlgorithm,
+    pub seed: u64,
+    pub algorithm: HashAlgorithm,
 }
 
 enum FastHasherInner {

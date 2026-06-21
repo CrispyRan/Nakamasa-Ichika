@@ -34,8 +34,8 @@ hmac.workspace = true
 chrono.workspace = true
 
 futures-util = "0.3"
-Nakamasa-utils.workspace = true
-Nakamasa-proc.workspace = true
+nakamasa_utils.workspace = true
+nakamasa_proc.workspace = true
 nakamasa-ai = { path = "../Nakamasa-Ai" }
 validator.workspace = true
 notify.workspace = true
@@ -45,6 +45,7 @@ mime_guess.workspace = true
 
 hex = "0.4"
 md5 = "0.7"
+argon2 = "0.5"
 http-body-util = "0.1"
 sha1 = "0.10"
 regex = "1.10"

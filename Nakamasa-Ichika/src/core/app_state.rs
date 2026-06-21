@@ -43,7 +43,7 @@ use crate::config::AppConfig;
 use crate::core::RedisUtil;
 use crate::core::admin_cache::AdminCacheService;
 use crate::app::plugins::pay::manager::PayPluginManager;
-use Nakamasa_utils::high_perf_cache::{
+use nakamasa_utils::high_perf_cache::{
     CacheConfig as V2CacheConfig, EvictionPolicy, ShardedCacheV2,
 };
 

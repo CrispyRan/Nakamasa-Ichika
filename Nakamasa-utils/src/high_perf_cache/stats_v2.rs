@@ -173,15 +173,15 @@ pub struct QuantileEstimator {
     /// 标记点
     markers: Vec<Marker>,
     /// 期望位置
-    desired_positions: Vec<f64>,
+    pub desired_positions: Vec<f64>,
 }
 
 /// 标记点
 #[derive(Clone, Debug)]
-struct Marker {
+pub(crate) struct Marker {
     height: f64,
     position: f64,
-    increment: f64,
+    pub _increment: f64,
 }
 
 impl QuantileEstimator {
@@ -195,7 +195,7 @@ impl QuantileEstimator {
             markers.push(Marker {
                 height: 0.0,
                 position: i as f64,
-                increment: 0.0,
+                _increment: 0.0,
             });
         }
 

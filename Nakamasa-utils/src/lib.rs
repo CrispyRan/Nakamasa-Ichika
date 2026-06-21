@@ -1,19 +1,5 @@
 //! Nakamasa-utils 工具库
 
-// 全局警告抑制
-#![allow(unused)]
-#![allow(non_snake_case)]
-#![allow(non_camel_case_types)]
-#![allow(non_upper_case_globals)]
-#![allow(unsafe_op_in_unsafe_fn)]
-// Clippy 警告抑制
-#![allow(clippy::missing_safety_doc)]
-#![allow(clippy::type_complexity)]
-#![allow(clippy::borrow_interior_mutable_const)]
-#![allow(clippy::await_holding_lock)]
-#![allow(clippy::should_implement_trait)]
-#![allow(clippy::inherent_to_string)]
-
 pub mod crypto;
 pub mod db_mysql;
 pub mod geoip;

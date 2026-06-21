@@ -868,7 +868,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                 if value.is_string() {
                     params.push(value.as_str().unwrap().to_string());
                 } else if value.is_null() {
-                    params.push("NULL".to_string());
+                    continue;
                 } else if value.is_boolean() {
                     // 布尔值转换为整数 1 或 0
                     params.push(if value.as_bool().unwrap() {

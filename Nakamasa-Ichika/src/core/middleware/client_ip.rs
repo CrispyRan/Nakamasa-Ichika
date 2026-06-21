@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 //! 客户端 IP 获取工具
 //! 默认只使用 TCP 直连地址；只有启用 trust_proxy_headers 且直连地址命中 trusted_proxies 时才信任代理头。
 
@@ -21,6 +19,9 @@ fn lock_cache<'a>(
     cache.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// 最大缓存 IP 数量，防止 `Box::leak` 无限增长
+const MAX_CACHED_IPS: usize = 10_000;
+
 /// 缓存并返回静态 IP 字符串，避免同一 IP 重复泄漏。
 #[inline]
 fn cache_ip(ip: &str) -> &'static str {
@@ -33,6 +34,9 @@ fn cache_ip(ip: &str) -> &'static str {
 
     let cache = IP_CACHE.get_or_init(|| Mutex::new(HashSet::new()));
     let mut cache_lock = lock_cache(cache);
+    if cache_lock.len() >= MAX_CACHED_IPS {
+        return "0.0.0.0";
+    }
     if let Some(cached) = cache_lock.get(ip) {
         return cached;
     }
@@ -147,13 +151,13 @@ pub fn is_valid_ip(ip: &str) -> bool {
 }
 
 /// 获取客户端 IP 并存入 depot
-pub fn insert_client_ip(req: &Request, depot: &mut Depot) {
+pub fn _insert_client_ip(req: &Request, depot: &mut Depot) {
     let ip = get_client_ip(req);
     depot.insert("client_ip", ip.to_string());
 }
 
 /// 从 depot 获取客户端 IP
-pub fn get_ip_from_depot(depot: &Depot) -> String {
+pub fn _get_ip_from_depot(depot: &Depot) -> String {
     depot
         .get::<String>("client_ip")
         .cloned()

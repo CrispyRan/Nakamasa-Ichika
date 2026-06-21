@@ -168,7 +168,7 @@ where
     V: Clone + Send + Sync + 'static,
 {
     shards: Vec<RwLock<CacheShard<K, V>>>,
-    shard_count: usize,
+    pub shard_count: usize,
     shard_mask: usize,
 }
 
@@ -311,7 +311,7 @@ where
     V: Clone + Send + Sync + Serialize + DeserializeOwned + 'static,
 {
     inner: ShardedCache<K, V>,
-    config: CacheConfig,
+    pub config: CacheConfig,
 }
 
 impl<K, V> TypedCache<K, V>
@@ -422,7 +422,7 @@ impl CacheManager {
 
     /// 清空所有缓存
     pub async fn clear_all(&self) {
-        let caches = self.caches.read().await;
+        let _caches = self.caches.read().await;
         // 这里无法直接清空类型化缓存，需要通过具体实例操作
     }
 }

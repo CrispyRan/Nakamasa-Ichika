@@ -1,5 +1,5 @@
 use crate::core::HandlerExt;
-use Nakamasa_proc::route;
+use nakamasa_proc::route;
 use salvo::prelude::*;
 use std::collections::HashMap;
 

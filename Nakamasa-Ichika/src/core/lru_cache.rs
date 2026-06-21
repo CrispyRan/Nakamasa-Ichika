@@ -2,7 +2,7 @@
 //! LRU 缓存实现
 //!
 //! 提供基于 LRU（最近最少使用）淘汰策略的内存缓存
-//! 注意：项目主要使用 Nakamasa_utils 中的 ShardedCacheV2（高性能版本）
+//! 注意：项目主要使用 nakamasa_utils 中的 ShardedCacheV2（高性能版本）
 //! 此模块保留作为轻量级备用方案
 
 use std::collections::HashMap;

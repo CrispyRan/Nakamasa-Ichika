@@ -85,11 +85,11 @@ pub struct DistributedLock<B: RedisBackend + 'static> {
 
 /// 持有的锁信息
 #[derive(Debug, Clone)]
-struct HeldLockInfo {
+pub struct HeldLockInfo {
     /// 锁值（用于释放时验证）
     value: String,
     /// 获取时间
-    acquired_at: Instant,
+    pub acquired_at: Instant,
     /// 过期时间
     expires_at: Instant,
     /// 重入次数
@@ -371,7 +371,7 @@ impl<B: RedisBackend + 'static> DistributedRwLock<B> {
 
     /// 获取读锁
     pub async fn read_lock(&self, key: &str) -> Result<(), LockError> {
-        let read_key = self.read_lock_key(key);
+        let _read_key = self.read_lock_key(key);
         let write_key = self.write_lock_key(key);
         let count_key = self.reader_count_key(key);
 
@@ -484,7 +484,7 @@ impl<B: RedisBackend + 'static> FairLock<B> {
     pub async fn lock(&self, key: &str) -> Result<FairLockGuard<'_, B>, LockError> {
         let lock_key = self.lock_key(key);
         let queue_key = self.queue_key(key);
-        let notify_key = self.notify_key(key);
+        let _notify_key = self.notify_key(key);
 
         let ticket = self.backend.incr(&queue_key, 1).await?;
         let lock_value = format!("ticket:{}", ticket);
@@ -567,9 +567,9 @@ impl<B: RedisBackend + 'static> FairLock<B> {
 
 /// 公平锁守卫
 pub struct FairLockGuard<'a, B: RedisBackend + 'static> {
-    lock: &'a FairLock<B>,
-    key: String,
-    lock_value: String,
+    pub lock: &'a FairLock<B>,
+    pub key: String,
+    pub lock_value: String,
 }
 
 impl<'a, B: RedisBackend + 'static> Drop for FairLockGuard<'a, B> {

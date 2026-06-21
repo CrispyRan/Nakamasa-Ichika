@@ -89,7 +89,7 @@ pub async fn set_phone(req: &mut Request, depot: &mut Depot, res: &mut Response)
     let dtime = current_time - (vc_time * 60) as i64;
 
     // 检查用户是否已绑定手机号
-    if user_info.phone.is_some() && !user_info.phone.as_ref().unwrap().is_empty() {
+    if user_info.phone.as_ref().is_some_and(|p| !p.is_empty()) {
         render_error(res, "已绑定手机号", 125, app_key);
         return;
     }

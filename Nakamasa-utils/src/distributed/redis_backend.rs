@@ -321,7 +321,7 @@ impl RedisBackend for MockRedisBackend {
         Ok(result)
     }
 
-    async fn lpush(&self, key: &str, value: &str) -> Result<i64, RedisError> {
+    async fn lpush(&self, key: &str, _value: &str) -> Result<i64, RedisError> {
         // 简化实现
         let list_key = format!("list:{}", key);
         let mut data = self.data.write();

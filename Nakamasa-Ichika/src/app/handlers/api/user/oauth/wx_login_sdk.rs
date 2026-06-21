@@ -72,7 +72,7 @@ async fn get_logon_config(pool: &sqlx::MySqlPool, appid: u64) -> Option<LogonCon
 fn generate_uniqid() -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap();
+        .unwrap_or_default();
     let secs = now.as_secs();
     let micros = now.subsec_micros();
     format!("{:x}{:05x}", secs, micros)

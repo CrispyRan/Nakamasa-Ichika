@@ -7,6 +7,7 @@
 use chrono::Utc;
 use once_cell::sync::OnceCell;
 use salvo::prelude::*;
+use sqlx::Row;
 use std::fmt::Write;
 use std::sync::Arc;
 
@@ -19,19 +20,36 @@ use crate::core::AppState;
 use crate::core::md5_optimize::{md5_hex, md5_to_str};
 use crate::core::middleware::get_client_ip;
 use crate::core::zero_copy::StringBuilder;
-use Nakamasa_utils::geoip::GeoIpReader;
+use nakamasa_utils::geoip::GeoIpReader;
 
 /// 全局 GeoIP 查询器实例
 static GEOIP_READER: OnceCell<GeoIpReader> = OnceCell::new();
 
 /// 初始化 GeoIP 查询器
 ///
-/// 从配置文件路径加载 GeoLite2-City.mmdb 数据库
-pub fn init_geoip(path: &str) -> Result<(), String> {
+/// 初始化 GeoIP 查询器
+///
+/// 从配置文件路径加载 GeoLite2-City.mmdb 和 GeoLite2-ASN.mmdb 数据库
+pub fn init_geoip(city_path: &str, asn_path: &str) -> Result<(), String> {
+    match GeoIpReader::new_with_asn(city_path, asn_path) {
+        Ok(reader) => {
+            let _ = GEOIP_READER.set(reader);
+            tracing::info!("GeoIP 初始化成功 (City: {}, ASN: {})", city_path, asn_path);
+            Ok(())
+        }
+        Err(e) => {
+            tracing::warn!("GeoIP+ASN 初始化失败: {} (IP功能将降级)", e);
+            init_geoip_city_only(city_path)
+        }
+    }
+}
+
+/// 降级：仅加载 City 数据库
+fn init_geoip_city_only(path: &str) -> Result<(), String> {
     match GeoIpReader::new(path) {
         Ok(reader) => {
             let _ = GEOIP_READER.set(reader);
-            tracing::info!("GeoIP 初始化成功: {}", path);
+            tracing::info!("GeoIP (City-only) 初始化成功: {}", path);
             Ok(())
         }
         Err(e) => {
@@ -41,24 +59,26 @@ pub fn init_geoip(path: &str) -> Result<(), String> {
     }
 }
 
-/// 查询 IP 地域信息
+/// 查询 IP 地域信息和 ASN/运营商
 ///
-/// 返回简化的地域信息，查询失败返回 None
+/// 返回完整的地域和运营商信息，查询失败返回 None
 pub fn lookup_ip_location(ip: &str) -> Option<IpLocation> {
-    GEOIP_READER
-        .get()
-        .and_then(|reader| match reader.lookup(ip) {
-            Ok(loc) if loc.is_valid() => Some(IpLocation {
+    GEOIP_READER.get().and_then(|reader| {
+        match reader.lookup_with_asn(ip) {
+            Ok(loc) if loc.is_valid() || loc.asn.is_some() => Some(IpLocation {
                 country: loc.country,
                 province: loc.province,
                 city: loc.city,
+                asn: loc.asn,
+                isp: loc.isp,
             }),
             Ok(_) => None,
             Err(e) => {
                 tracing::debug!("IP 地域查询失败: {} - {}", ip, e);
                 None
             }
-        })
+        }
+    })
 }
 
 /// 应用登录配置
@@ -95,7 +115,7 @@ async fn get_logon_config(pool: &sqlx::MySqlPool, appid: u64) -> Option<LogonCon
 fn generate_uniqid() -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap();
+        .unwrap_or_default();
     format!("{:x}{:05x}", now.as_secs(), now.subsec_micros())
 }
 
@@ -267,7 +287,7 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let ip_hash_bytes = md5_hex(ip.as_bytes());
     let ip_hash = md5_to_str(&ip_hash_bytes);
 
-    if let Some(remain) = check_ip_locked(
+    if let Some(_remain) = check_ip_locked(
         redis_util,
         app_state.redis_pool.as_ref(),
         ip_hash,
@@ -277,95 +297,108 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     {
         render_error(
             res,
-            format!("由于您登录失败次数过多，账号已锁定，请{}秒后重试", remain),
+            "由于您登录失败次数过多，账号已被暂时锁定，请稍后重试".to_string(),
             201,
             app_key,
         );
         return;
     }
 
-    // 计算密码hash
-    let password_hash_bytes = md5_hex(login_req.password.as_bytes());
-    let password_hash = md5_to_str(&password_hash_bytes);
-
-    // 查询用户 - 优化：根据账号类型使用不同查询，避免 OR 条件无法使用索引
-    // 判断账号类型以选择最优查询路径
+    // 查询用户 - 根据账号类型选择索引最优的查询字段（字段名由代码控制，无注入风险）
     let is_email = account.contains('@');
     let is_phone = account.chars().all(|c| c.is_ascii_digit());
+    let where_field = if is_email { "email" } else if is_phone { "phone" } else { "acctno" };
 
-    let user_result = if is_email {
-        // 邮箱登录 - 使用 idx_user_appid_email 索引
-        sqlx::query_as::<_, (u64, String, Option<i64>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<serde_json::Value>, Option<String>, Option<String>, Option<String>, Option<serde_json::Value>)>(
-            "SELECT id, acctno, phone, email, nickname, avatars, inviter_id, vip, fen, ban, sn_max, extend, ban_msg, open_wx, open_qq, sn_list
-             FROM u_user 
-             WHERE email = ? AND password = ? AND appid = ?"
-        )
+    let user_sql = format!(
+        "SELECT id, acctno, phone, email, nickname, avatars, inviter_id, \
+                vip, fen, ban, sn_max, extend, ban_msg, open_wx, open_qq, sn_list, password \
+         FROM u_user WHERE {} = ? AND appid = ?",
+        where_field
+    );
+    let user_row = sqlx::query(&user_sql)
         .bind(account)
-        .bind(password_hash)
         .bind(appid)
         .fetch_optional(db)
-        .await
-    } else if is_phone {
-        // 手机号登录 - 使用 idx_user_appid_phone 索引
-        sqlx::query_as::<_, (u64, String, Option<i64>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<serde_json::Value>, Option<String>, Option<String>, Option<String>, Option<serde_json::Value>)>(
-            "SELECT id, acctno, phone, email, nickname, avatars, inviter_id, vip, fen, ban, sn_max, extend, ban_msg, open_wx, open_qq, sn_list
-             FROM u_user 
-             WHERE phone = ? AND password = ? AND appid = ?"
-        )
-        .bind(account)
-        .bind(password_hash)
-        .bind(appid)
-                .fetch_optional(db)
-        .await
-    } else {
-        // 账号登录 - 使用 idx_user_appid_acctno 索引
-        sqlx::query_as::<_, (u64, String, Option<i64>, Option<String>, Option<String>, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<serde_json::Value>, Option<String>, Option<String>, Option<String>, Option<serde_json::Value>)>(
-            "SELECT id, acctno, phone, email, nickname, avatars, inviter_id, vip, fen, ban, sn_max, extend, ban_msg, open_wx, open_qq, sn_list
-             FROM u_user 
-             WHERE acctno = ? AND password = ? AND appid = ?"
-        )
-        .bind(account)
-        .bind(password_hash)
-        .bind(appid)
-                .fetch_optional(db)
-        .await
-    };
+        .await;
 
-    match user_result {
-        Ok(Some((
-            id,
-            acctno,
-            phone,
-            email,
-            nickname,
-            avatars,
-            inviter_id,
-            vip,
-            fen,
-            ban,
-            sn_max,
-            extend,
-            ban_msg,
-            open_wx,
-            open_qq,
-            sn_list_json,
-        ))) => {
-            // 将 JSON Value 转换为字符串用于后续处理
+    match user_row {
+        Ok(Some(row)) => {
+            let id: u64 = match row.try_get(0) {
+                Ok(v) => v,
+                Err(_) => {
+                    render_error(res, "数据库错误", 201, app_key);
+                    return;
+                }
+            };
+            let acctno: String = row.try_get(1).unwrap_or_default();
+            let phone: Option<i64> = row.try_get(2).ok().flatten();
+            let email: Option<String> = row.try_get(3).ok().flatten();
+            let nickname: Option<String> = row.try_get(4).ok().flatten();
+            let avatars: Option<String> = row.try_get(5).ok().flatten();
+            let inviter_id: Option<i64> = row.try_get(6).ok().flatten();
+            let vip: Option<i64> = row.try_get(7).ok().flatten();
+            let fen: Option<i64> = row.try_get(8).ok().flatten();
+            let ban: Option<i64> = row.try_get(9).ok().flatten();
+            let sn_max: Option<i64> = row.try_get(10).ok().flatten();
+            let extend: Option<serde_json::Value> = row.try_get(11).ok().flatten();
+            let ban_msg: Option<String> = row.try_get(12).ok().flatten();
+            let open_wx: Option<String> = row.try_get(13).ok().flatten();
+            let open_qq: Option<String> = row.try_get(14).ok().flatten();
+            let sn_list_json: Option<serde_json::Value> = row.try_get(15).ok().flatten();
+            let db_password: String = row.try_get(16).unwrap_or_default();
+
             let sn_list = sn_list_json
                 .as_ref()
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .or_else(|| sn_list_json.map(|v| v.to_string()));
-            // 检查是否被禁用
+
             if let Some(ban_time) = ban
                 && ban_time > current_time
             {
-                let msg = ban_msg
-                    .clone()
-                    .unwrap_or_else(|| "账号已被禁用".to_string());
+                let msg = ban_msg.unwrap_or_else(|| "账号已被禁用".to_string());
                 render_error(res, msg, 127, app_key);
                 return;
             }
+
+            // 使用 Argon2id 验证密码（兼容旧 MD5）
+            if !crate::core::password::verify_password(&db_password, &login_req.password) {
+                increment_fail_count(
+                    redis_util,
+                    app_state.redis_pool.as_ref(),
+                    ip_hash,
+                    current_time,
+                )
+                .await;
+                render_error(res, "账号密码有误", 126, app_key);
+                return;
+            }
+
+            // 如果密码是 MD5 格式，升级为 Argon2id
+            let final_password_hash: String = if crate::core::password::is_md5_hash(&db_password)
+            {
+                match crate::core::password::hash_password(&login_req.password) {
+                    Ok(new_hash) => {
+                        if let Err(e) = sqlx::query(
+                            "UPDATE u_user SET password = ? WHERE id = ?"
+                        )
+                        .bind(&new_hash)
+                        .bind(id)
+                        .execute(db)
+                        .await
+                        {
+                            tracing::error!("密码升级失败: {}", e);
+                        }
+                        new_hash
+                    }
+                    Err(e) => {
+                        tracing::error!("密码加密失败: {}", e);
+                        db_password
+                    }
+                }
+            } else {
+                db_password
+            };
 
             let sn_max_val = sn_max.unwrap_or(0);
 
@@ -387,12 +420,12 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             )
             .await;
 
-            // 生成token
+            // 生成token（使用 SHA256 而非 MD5）
             let uniqid = generate_uniqid();
             let mut token_seed = String::with_capacity(64);
-            let _ = write!(&mut token_seed, "{}{}{}", uniqid, id, &login_req.udid);
-            let token_bytes = md5_hex(token_seed.as_bytes());
-            let token = md5_to_str(&token_bytes).to_string();
+            let random_padding: u64 = rand::random();
+            let _ = write!(&mut token_seed, "{}{}{}{}", uniqid, id, &login_req.udid, random_padding);
+            let token = crate::core::password::sha256_hex(&token_seed);
 
             // VIP过期日期格式化
             let vip_exp_date = match vip {
@@ -429,8 +462,9 @@ pub async fn login(req: &mut Request, depot: &mut Depot, res: &mut Response) {
                 let mut token_key = String::with_capacity(48);
                 let _ = write!(&mut token_key, "{}{}", token_pre, token);
 
+                let redis_pwd = crate::core::password::password_redis_hash(&final_password_hash);
                 let token_data = serde_json::json!({
-                    "uid": id, "udid": &login_req.udid, "p": password_hash, "appid": appid
+                    "uid": id, "udid": &login_req.udid, "p": &redis_pwd, "appid": appid
                 });
 
                 if let Err(e) = redis_util
@@ -667,7 +701,7 @@ let logon_ban_expire = get_logon_ban_expire(db, appid).await;
     let ip_hash_bytes = md5_hex(ip.as_bytes());
     let ip_hash = md5_to_str(&ip_hash_bytes);
 
-    if let Some(remain) = check_ip_locked(
+    if let Some(_remain) = check_ip_locked(
         redis_util,
         app_state.redis_pool.as_ref(),
         ip_hash,
@@ -677,7 +711,7 @@ let logon_ban_expire = get_logon_ban_expire(db, appid).await;
     {
         render_error(
             res,
-            format!("由于您登录失败次数过多，账号已锁定，请{}秒后重试", remain),
+            "由于您登录失败次数过多，账号已被暂时锁定，请稍后重试".to_string(),
             201,
             app_key,
         );
@@ -718,16 +752,12 @@ let logon_ban_expire = get_logon_ban_expire(db, appid).await;
                 .and_then(|v| v.as_str())
                 .map(|s| s.to_string())
                 .or_else(|| sn_list_json.map(|v| v.to_string()));
-            // 检查密码
+            // 检查密码（兼容 Argon2 和旧 MD5）
             if let Some(ref pwd) = kami_password
                 && !pwd.is_empty()
             {
-                let pwd_valid = kami_req
-                    .password
-                    .as_ref()
-                    .map(|p| md5_to_str(&md5_hex(p.as_bytes())) == *pwd)
-                    .unwrap_or(false);
-                if !pwd_valid {
+                let raw_pwd = kami_req.password.as_deref().unwrap_or("");
+                if !crate::core::password::verify_password(pwd, raw_pwd) {
                     increment_fail_count(
                         redis_util,
                         app_state.redis_pool.as_ref(),
@@ -737,6 +767,16 @@ let logon_ban_expire = get_logon_ban_expire(db, appid).await;
                     .await;
                     render_error(res, "登录卡密密码有误", 126, app_key);
                     return;
+                }
+                // 如果旧 MD5 密码，原地升级为 Argon2
+                if crate::core::password::is_md5_hash(pwd) {
+                    if let Ok(new_hash) = crate::core::password::hash_password(raw_pwd) {
+                        let _ = sqlx::query("UPDATE u_cdk_kami SET password = ? WHERE id = ?")
+                            .bind(&new_hash)
+                            .bind(id)
+                            .execute(db)
+                            .await;
+                    }
                 }
             }
 
@@ -805,11 +845,11 @@ let logon_ban_expire = get_logon_ban_expire(db, appid).await;
             )
             .await;
 
-            // 生成token
+            // 生成token（使用 SHA256 而非 MD5）
             let uniqid = generate_uniqid();
             let mut token_seed = String::with_capacity(64);
             let _ = write!(&mut token_seed, "{}{}{}", uniqid, id, &kami_req.udid);
-            let token = md5_to_str(&md5_hex(token_seed.as_bytes())).to_string();
+            let token = crate::core::password::sha256_hex(&token_seed);
 
             // 构建返回信息
             let mut info = serde_json::json!({
@@ -834,9 +874,11 @@ let logon_ban_expire = get_logon_ban_expire(db, appid).await;
                 let mut token_key = String::with_capacity(48);
                 let _ = write!(&mut token_key, "{}{}", token_pre, token);
 
+                let kami_pwd = kami_password.unwrap_or_default();
+                let redis_pwd = crate::core::password::password_redis_hash(&kami_pwd);
                 let token_data = serde_json::json!({
                     "uid": id, "udid": &kami_req.udid,
-                    "p": kami_password.unwrap_or_default(),
+                    "p": redis_pwd,
                     "appid": appid, "type": "kami"
                 });
 

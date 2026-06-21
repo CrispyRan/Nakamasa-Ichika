@@ -9,15 +9,15 @@
 //!
 //! # Example
 //! ```rust,ignore
-//! use Nakamasa_utils::geoip::{GeoIpReader, GeoLocation};
+//! use nakamasa_utils::geoip::{GeoIpReader, GeoLocation};
 //!
 //! let reader = GeoIpReader::new("GeoLite2-City.mmdb")?;
 //! let location = reader.lookup("8.8.8.8")?;
 //! println!("国家: {}, 城市: {}", location.country, location.city);
 //! ```
 
+use maxminddb::geoip2::{Asn, City};
 use maxminddb::Reader;
-use maxminddb::geoip2::City;
 use std::net::IpAddr;
 use std::path::Path;
 use std::sync::Arc;
@@ -37,6 +37,10 @@ pub struct GeoLocation {
     pub longitude: Option<f64>,
     /// 国家 ISO 代码 (如 CN, US)
     pub country_code: String,
+    /// 自治系统编号 (ASN)
+    pub asn: Option<u32>,
+    /// 运营商/组织名称
+    pub isp: Option<String>,
 }
 
 impl GeoLocation {
@@ -49,6 +53,8 @@ impl GeoLocation {
             latitude: None,
             longitude: None,
             country_code: String::new(),
+            asn: None,
+            isp: None,
         }
     }
 
@@ -75,14 +81,15 @@ impl GeoLocation {
 
 /// GeoIP 查询器
 ///
-/// 封装 MaxMind 数据库读取器，提供 IP 地理位置查询功能。
+/// 封装 MaxMind City 和 ASN 数据库读取器，提供 IP 地理位置 + 运营商查询功能。
 /// 内部使用 `Arc` 包装，支持多线程共享。
 pub struct GeoIpReader {
-    reader: Arc<Reader<Vec<u8>>>,
+    city: Arc<Reader<Vec<u8>>>,
+    asn: Option<Arc<Reader<Vec<u8>>>>,
 }
 
 impl GeoIpReader {
-    /// 从文件路径创建 GeoIP 查询器
+    /// 从文件路径创建 GeoIP 查询器（仅 City 数据库）
     ///
     /// # Arguments
     /// * `path` - GeoLite2-City.mmdb 文件路径
@@ -98,17 +105,45 @@ impl GeoIpReader {
         let reader =
             Reader::open_readfile(path).map_err(|e| GeoIpError::OpenFailed(e.to_string()))?;
         Ok(GeoIpReader {
-            reader: Arc::new(reader),
+            city: Arc::new(reader),
+            asn: None,
+        })
+    }
+
+    /// 从文件路径创建 GeoIP 查询器（同时加载 City + ASN 数据库）
+    ///
+    /// # Arguments
+    /// * `city_path` - GeoLite2-City.mmdb 文件路径
+    /// * `asn_path` - GeoLite2-ASN.mmdb 文件路径
+    ///
+    /// # Errors
+    /// 任一文件不存在或格式无效，返回错误
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let reader = GeoIpReader::new_with_asn("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb")?;
+    /// ```
+    pub fn new_with_asn<P: AsRef<Path>>(
+        city_path: P,
+        asn_path: P,
+    ) -> Result<Self, GeoIpError> {
+        let city =
+            Reader::open_readfile(city_path).map_err(|e| GeoIpError::OpenFailed(e.to_string()))?;
+        let asn =
+            Reader::open_readfile(asn_path).map_err(|e| GeoIpError::OpenFailed(e.to_string()))?;
+        Ok(GeoIpReader {
+            city: Arc::new(city),
+            asn: Some(Arc::new(asn)),
         })
     }
 
     /// 查询 IP 地址的地理位置
     ///
     /// # Arguments
-    /// * `ip_str` - IP 地址字符串 (如 "8.8.8.8")
+    /// * `ip_str` - IP 地址字符串 (如 "8.8.8.8" 或 "2001:db8::1")
     ///
     /// # Returns
-    /// 返回 `GeoLocation` 结构体，查询失败时返回空结构体
+    /// 返回 `GeoLocation` 结构体，包含国家、省份、城市、经纬度
     ///
     /// # Example
     /// ```rust,ignore
@@ -121,12 +156,51 @@ impl GeoIpReader {
             .map_err(|e: std::net::AddrParseError| GeoIpError::InvalidIp(e.to_string()))?;
 
         let city: City = self
-            .reader
+            .city
             .lookup(ip)
             .map_err(|e| GeoIpError::LookupFailed(e.to_string()))?
             .ok_or(GeoIpError::NoData)?;
 
         Ok(self.extract_location(&city))
+    }
+
+    /// 查询 IP 地址的地理位置和 ASN/运营商信息
+    ///
+    /// # Arguments
+    /// * `ip_str` - IP 地址字符串 (如 "8.8.8.8" 或 "2001:db8::1")
+    ///
+    /// # Returns
+    /// 返回 `GeoLocation` 结构体，额外包含 ASN 编号和运营商名称
+    /// ASN 查询失败不影响地理位置数据返回
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let location = reader.lookup_with_asn("8.8.8.8")?;
+    /// println!("运营商: {:?}, ASN: {:?}", location.isp, location.asn);
+    /// ```
+    pub fn lookup_with_asn(&self, ip_str: &str) -> Result<GeoLocation, GeoIpError> {
+        let ip: IpAddr = ip_str
+            .parse()
+            .map_err(|e: std::net::AddrParseError| GeoIpError::InvalidIp(e.to_string()))?;
+
+        let city: City = self
+            .city
+            .lookup(ip)
+            .map_err(|e| GeoIpError::LookupFailed(e.to_string()))?
+            .ok_or(GeoIpError::NoData)?;
+
+        let mut loc = self.extract_location(&city);
+
+        if let Some(ref asn_reader) = self.asn {
+            if let Ok(Some(asn_data)) = asn_reader.lookup::<Asn>(ip) {
+                loc.asn = asn_data.autonomous_system_number;
+                loc.isp = asn_data
+                    .autonomous_system_organization
+                    .map(|s| s.to_string());
+            }
+        }
+
+        Ok(loc)
     }
 
     /// 从 City 结构中提取地理位置信息
@@ -186,6 +260,9 @@ impl GeoIpReader {
                 .as_ref()
                 .and_then(|c| c.iso_code.as_ref().map(|s| s.to_string()))
                 .unwrap_or_default(),
+
+            asn: None,
+            isp: None,
         }
     }
 
@@ -205,16 +282,21 @@ impl GeoIpReader {
             .collect()
     }
 
-    /// 克隆内部 Reader 的 Arc 引用
-    pub fn clone_reader(&self) -> Arc<Reader<Vec<u8>>> {
-        Arc::clone(&self.reader)
+    pub fn clone_city_reader(&self) -> Arc<Reader<Vec<u8>>> {
+        Arc::clone(&self.city)
+    }
+
+    /// 克隆内部 ASN Reader 的 Arc 引用
+    pub fn clone_asn_reader(&self) -> Option<Arc<Reader<Vec<u8>>>> {
+        self.asn.as_ref().map(Arc::clone)
     }
 }
 
 impl Clone for GeoIpReader {
     fn clone(&self) -> Self {
         GeoIpReader {
-            reader: Arc::clone(&self.reader),
+            city: Arc::clone(&self.city),
+            asn: self.asn.as_ref().map(Arc::clone),
         }
     }
 }
@@ -278,6 +360,8 @@ mod tests {
             latitude: Some(39.9),
             longitude: Some(116.4),
             country_code: "CN".to_string(),
+            asn: Some(15169),
+            isp: Some("Google LLC".to_string()),
         };
         assert_eq!(loc.to_short_string(), "中国 北京");
     }

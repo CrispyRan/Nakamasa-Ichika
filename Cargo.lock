@@ -6,10 +6,9 @@ version = 4
 name = "Nakamasa-Ichika"
 version = "1.0.3"
 dependencies = [
- "Nakamasa-proc",
- "Nakamasa-utils",
  "aes",
  "anyhow",
+ "argon2",
  "async-trait",
  "aws-lc-rs",
  "base64",
@@ -32,6 +31,8 @@ dependencies = [
  "md5",
  "mime_guess",
  "nakamasa-ai",
+ "nakamasa_proc",
+ "nakamasa_utils",
  "nix 0.29.0",
  "notify",
  "num_cpus",
@@ -58,52 +59,6 @@ dependencies = [
  "unic-langid",
  "urlencoding",
  "validator",
-]
-
-[[package]]
-name = "Nakamasa-proc"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "proc-macro2",
- "quote",
- "salvo",
- "serde",
- "serde_json",
- "syn",
- "tokio",
-]
-
-[[package]]
-name = "Nakamasa-utils"
-version = "0.1.0"
-dependencies = [
- "aes",
- "aes-gcm",
- "async-trait",
- "base64",
- "cbc",
- "chrono",
- "crossbeam",
- "fnv",
- "hmac",
- "lazy_static",
- "lru",
- "maxminddb",
- "once_cell",
- "parking_lot",
- "rand 0.9.4",
- "regex",
- "salvo",
- "serde",
- "serde_json",
- "sha2 0.10.9",
- "sha3",
- "sqlx",
- "thiserror 1.0.69",
- "tokio",
- "tracing",
- "uuid",
 ]
 
 [[package]]
@@ -286,6 +241,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a3a1fd6f75306b68087b831f025c712524bcb19aad54e557b1129cfa0a2b207"
 dependencies = [
  "rustversion",
+]
+
+[[package]]
+name = "argon2"
+version = "0.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c3610892ee6e0cbce8ae2700349fcf8f98adb0dbfbee85aec3c9179d29cc072"
+dependencies = [
+ "base64ct",
+ "blake2",
+ "cpufeatures 0.2.17",
+ "password-hash",
 ]
 
 [[package]]
@@ -472,6 +439,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4512299f36f043ab09a583e57bceb5a5aab7a73db1805848e8fef3c9e8c78b3"
 dependencies = [
  "serde_core",
+]
+
+[[package]]
+name = "blake2"
+version = "0.10.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "46502ad458c9a52b69d4d4d32775c788b7a1b85e8bc9d482d92250fc0e3f8efe"
+dependencies = [
+ "digest 0.10.7",
 ]
 
 [[package]]
@@ -3165,6 +3141,52 @@ dependencies = [
 ]
 
 [[package]]
+name = "nakamasa_proc"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "proc-macro2",
+ "quote",
+ "salvo",
+ "serde",
+ "serde_json",
+ "syn",
+ "tokio",
+]
+
+[[package]]
+name = "nakamasa_utils"
+version = "0.1.0"
+dependencies = [
+ "aes",
+ "aes-gcm",
+ "async-trait",
+ "base64",
+ "cbc",
+ "chrono",
+ "crossbeam",
+ "fnv",
+ "hmac",
+ "lazy_static",
+ "lru",
+ "maxminddb",
+ "once_cell",
+ "parking_lot",
+ "rand 0.9.4",
+ "regex",
+ "salvo",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sha3",
+ "sqlx",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "neli"
 version = "0.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3468,6 +3490,17 @@ dependencies = [
  "redox_syscall 0.5.18",
  "smallvec",
  "windows-link",
+]
+
+[[package]]
+name = "password-hash"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166"
+dependencies = [
+ "base64ct",
+ "rand_core 0.6.4",
+ "subtle",
 ]
 
 [[package]]

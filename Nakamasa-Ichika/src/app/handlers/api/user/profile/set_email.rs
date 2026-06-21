@@ -89,7 +89,7 @@ pub async fn set_email(req: &mut Request, depot: &mut Depot, res: &mut Response)
     let dtime = current_time - (vc_time * 60) as i64;
 
     // 检查用户是否已绑定邮箱
-    if user_info.email.is_some() && !user_info.email.as_ref().unwrap().is_empty() {
+    if user_info.email.as_ref().is_some_and(|e| !e.is_empty()) {
         render_error(res, "已绑定邮箱", 124, app_key);
         return;
     }

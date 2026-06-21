@@ -10,7 +10,7 @@ use crate::app::utils::validator::Validator;
 use crate::core::AppState;
 use crate::core::md5_optimize::{md5_hex, md5_to_str};
 use crate::core::migration;
-use Nakamasa_utils::encrypt;
+use nakamasa_utils::encrypt;
 
 /// 检查系统是否已安装（通过 config.yaml 文件是否存在判断）
 fn is_installed() -> bool {

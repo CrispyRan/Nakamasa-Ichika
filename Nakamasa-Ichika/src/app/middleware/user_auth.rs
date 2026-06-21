@@ -492,7 +492,8 @@ impl UserAuth {
                     };
 
                 // 验证密码（防止密码被修改后缓存仍有效）
-                if !constant_time_eq(&user_info.password, &cached.password) {
+                let db_pwd_sha = crate::core::password::password_redis_hash(&user_info.password);
+                if !constant_time_eq(&db_pwd_sha, &cached.password) {
                     // 密码已修改，失效缓存
                     app_state.token_cache.remove(&token_cache_key);
                     res.render(Json(ApiResponse::<()>::error_static("Token已过期", 131)));
@@ -623,7 +624,8 @@ impl UserAuth {
             ctrl.skip_rest();
             return None;
         }
-        let password_valid = constant_time_eq(&user_info.password, &token_data.p);
+        let db_pwd_sha = crate::core::password::password_redis_hash(&user_info.password);
+        let password_valid = constant_time_eq(&db_pwd_sha, &token_data.p);
 
         if !password_valid {
             res.render(Json(ApiResponse::<()>::error_static("Token已过期", 131)));

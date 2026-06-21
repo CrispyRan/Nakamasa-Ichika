@@ -5,9 +5,38 @@
 //! - 自动同步数据库和缓存
 //! - 支持密码变更检测和缓存失效
 
-use Nakamasa_utils::{CacheConfig, EvictionPolicy, ShardedCacheV2};
+use nakamasa_utils::{CacheConfig, EvictionPolicy, ShardedCacheV2};
 use sqlx::MySqlPool;
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
+
+use crate::core::password;
+
+/// 常量时间比较 - 防止时序攻击
+#[inline]
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let a_bytes = a.as_bytes();
+    let b_bytes = b.as_bytes();
+    let mut result: u8 = 0;
+    for i in 0..a.len() {
+        result |= a_bytes[i] ^ b_bytes[i];
+    }
+    result == 0
+}
+
+/// 密码比对：支持 Argon2（verify_password）和旧 MD5（md5_with_salt）
+#[inline]
+fn password_matches(stored: &str, raw_password: &str, salt: &str) -> bool {
+    if stored.starts_with("$argon2") {
+        password::verify_password(stored, raw_password)
+    } else {
+        constant_time_eq(stored, &password::md5_with_salt(raw_password, salt))
+    }
+}
 
 /// 管理员缓存条目
 #[derive(Clone, Debug)]
@@ -38,6 +67,20 @@ impl AdminData {
             None => serde_json::json!(["all"]),
         }
     }
+}
+
+/// 管理员数据库行（自动映射 sqlx 查询结果）
+#[derive(Debug, Clone, sqlx::FromRow)]
+pub struct AdminRow {
+    pub id: u64,
+    pub user: String,
+    pub password: String,
+    pub notes: Option<String>,
+    pub state: String,
+    pub avatars: Option<String>,
+    pub auth: Option<String>,
+    pub lockin: bool,
+    pub appid: Option<u64>,
 }
 
 /// 缓存查询结果
@@ -194,27 +237,25 @@ impl AdminCacheService {
         }
     }
 
-    /// 验证登录（用户名 + 密码）
-    /// 返回 (缓存结果, 管理员数据)
+    /// 验证登录（用户名 + 原始密码 + 盐）
     pub async fn verify_login(
         &self,
         username: &str,
-        password_hash: &str,
+        raw_password: &str,
+        salt: &str,
     ) -> CacheResult<AdminData> {
         // 先尝试从缓存验证
         let username_key = username.to_string();
         if let Some(id) = self.name_index.get(&username_key)
             && let Some(data) = self.cache.get(&id)
-            && data.password == password_hash
             && data.is_active()
+            && password_matches(&data.password, raw_password, salt)
         {
             return CacheResult::Hit(data);
         }
-        // 密码不匹配或账号已禁用，移除过期缓存
-        // 但不立即删除，让数据库验证后决定
 
-        // 缓存验证失败，查询数据库
-        match self.verify_from_db(username, password_hash).await {
+        // 缓存未命中或密码不匹配，查询数据库
+        match self.verify_from_db(username, raw_password, salt).await {
             Ok(Some(data)) => {
                 let id = data.id;
                 self.name_index.set(data.user.clone(), id);
@@ -226,23 +267,19 @@ impl AdminCacheService {
         }
     }
 
-    /// 验证Token（ID + 密码MD5）
-    pub async fn verify_token(&self, id: u64, password_md5: &str) -> CacheResult<AdminData> {
+    /// 验证Token（ID + 密码）
+    pub async fn verify_token(&self, id: u64, password: &str) -> CacheResult<AdminData> {
         // 尝试从缓存验证
         if let Some(data) = self.cache.get(&id) {
-            if data.is_active() {
-                // 计算密码的MD5进行比较
-                let stored_md5 = Self::password_md5(&data.password);
-                if stored_md5 == password_md5 {
-                    return CacheResult::Hit(data);
-                }
+            if data.is_active() && constant_time_eq(&data.password, password) {
+                return CacheResult::Hit(data);
             }
             // 缓存数据无效，移除
             self.cache.remove(&id);
         }
 
         // 缓存验证失败，查询数据库
-        match self.verify_token_from_db(id, password_md5).await {
+        match self.verify_token_from_db(id, password).await {
             Ok(Some(data)) => {
                 self.name_index.set(data.user.clone(), id);
                 let data = self.cache.set_and_get(id, data);
@@ -302,100 +339,93 @@ impl AdminCacheService {
 
     // ==================== 内部数据库操作 ====================
 
+    #[inline]
+    fn row_to_admin_data(row: &AdminRow) -> AdminData {
+        AdminData {
+            id: row.id,
+            user: row.user.clone(),
+            password: row.password.clone(),
+            notes: row.notes.clone(),
+            state: row.state.clone(),
+            avatars: row.avatars.clone(),
+            auth: row.auth.clone(),
+            lockin: row.lockin,
+            appid: row.appid,
+        }
+    }
+
+    /// 泛型闭包查询：提取 `self.db`（传所有权，MySqlPool 是轻量 Arc），闭包返回 boxed future
+    async fn fetch_admin(
+        &self,
+        build: impl FnOnce(MySqlPool) -> Pin<Box<dyn Future<Output = Result<Option<AdminRow>, sqlx::Error>> + Send>>,
+    ) -> Result<Option<AdminRow>, String> {
+        let db = self.db.clone().ok_or("Database not available")?;
+        build(db).await.map_err(|e| e.to_string())
+    }
+
     /// 从数据库加载管理员（通过ID）
     #[allow(dead_code)]
     async fn load_from_db_by_id(&self, id: u64) -> Result<Option<AdminData>, String> {
-        let db = self.db.as_ref().ok_or("Database not available")?;
-
-        let result = sqlx::query_as::<_, (
-            u64, String, String, Option<String>, String, Option<String>, Option<String>, bool, Option<u64>
-        )>(
-            "SELECT id, user, password, notes, state, avatars, auth, lockin, appid FROM u_admin WHERE id = ?"
-        )
-        .bind(id)
-        .fetch_optional(db)
-        .await;
-
-        match result {
-            Ok(Some(row)) => Ok(Some(AdminData {
-                id: row.0,
-                user: row.1,
-                password: row.2,
-                notes: row.3,
-                state: row.4,
-                avatars: row.5,
-                auth: row.6,
-                lockin: row.7,
-                appid: row.8,
-            })),
-            Ok(None) => Ok(None),
-            Err(e) => Err(e.to_string()),
-        }
+        self.fetch_admin(|db| {
+            Box::pin(async move {
+                sqlx::query_as::<_, AdminRow>(
+                    "SELECT id, user, password, notes, state, avatars, auth, lockin, appid FROM u_admin WHERE id = ?"
+                )
+                .bind(id)
+                .fetch_optional(&db)
+                .await
+            })
+        })
+        .await
+        .map(|r| r.map(|row| Self::row_to_admin_data(&row)))
     }
 
     /// 从数据库加载管理员（通过用户名）
     #[allow(dead_code)]
     async fn load_from_db_by_name(&self, username: &str) -> Result<Option<AdminData>, String> {
-        let db = self.db.as_ref().ok_or("Database not available")?;
-
-        let result = sqlx::query_as::<_, (
-            u64, String, String, Option<String>, String, Option<String>, Option<String>, bool, Option<u64>
-        )>(
-            "SELECT id, user, password, notes, state, avatars, auth, lockin, appid FROM u_admin WHERE user = ?"
-        )
-        .bind(username)
-        .fetch_optional(db)
-        .await;
-
-        match result {
-            Ok(Some(row)) => Ok(Some(AdminData {
-                id: row.0,
-                user: row.1,
-                password: row.2,
-                notes: row.3,
-                state: row.4,
-                avatars: row.5,
-                auth: row.6,
-                lockin: row.7,
-                appid: row.8,
-            })),
-            Ok(None) => Ok(None),
-            Err(e) => Err(e.to_string()),
-        }
+        let username = username.to_string();
+        self.fetch_admin(|db| {
+            Box::pin(async move {
+                sqlx::query_as::<_, AdminRow>(
+                    "SELECT id, user, password, notes, state, avatars, auth, lockin, appid FROM u_admin WHERE user = ?"
+                )
+                .bind(&username)
+                .fetch_optional(&db)
+                .await
+            })
+        })
+        .await
+        .map(|r| r.map(|row| Self::row_to_admin_data(&row)))
     }
 
-    /// 从数据库验证登录
+    /// 从数据库验证登录（先查用户再验密码，兼容 Argon2 和 MD5）
     async fn verify_from_db(
         &self,
         username: &str,
-        password_hash: &str,
+        raw_password: &str,
+        salt: &str,
     ) -> Result<Option<AdminData>, String> {
-        let db = self.db.as_ref().ok_or("Database not available")?;
-
-        let result = sqlx::query_as::<_, (
-            u64, String, String, Option<String>, String, Option<String>, Option<String>, bool, Option<u64>
-        )>(
-            "SELECT id, user, password, notes, state, avatars, auth, lockin, appid FROM u_admin WHERE user = ? AND password = ? AND state = 'y'"
-        )
-        .bind(username)
-        .bind(password_hash)
-        .fetch_optional(db)
-        .await;
-
-        match result {
-            Ok(Some(row)) => Ok(Some(AdminData {
-                id: row.0,
-                user: row.1,
-                password: row.2,
-                notes: row.3,
-                state: row.4,
-                avatars: row.5,
-                auth: row.6,
-                lockin: row.7,
-                appid: row.8,
-            })),
+        let username = username.to_string();
+        match self
+            .fetch_admin(|db| {
+                Box::pin(async move {
+                    sqlx::query_as::<_, AdminRow>(
+                        "SELECT id, user, password, notes, state, avatars, auth, lockin, appid \
+                         FROM u_admin WHERE user = ? AND state = 'y'"
+                    )
+                    .bind(&username)
+                    .fetch_optional(&db)
+                    .await
+                })
+            })
+            .await
+        {
+            Ok(Some(row)) if password_matches(&row.password, raw_password, salt) => {
+                Ok(Some(Self::row_to_admin_data(&row)))
+            }
+            Ok(Some(_)) => Ok(None),
             Ok(None) => Ok(None),
-            Err(e) => Err(e.to_string()),
+            Err(e) => Err(e),
         }
     }
 
@@ -403,57 +433,36 @@ impl AdminCacheService {
     async fn verify_token_from_db(
         &self,
         id: u64,
-        password_md5: &str,
+        password: &str,
     ) -> Result<Option<AdminData>, String> {
-        let db = self.db.as_ref().ok_or("Database not available")?;
-
-        let result = sqlx::query_as::<_, (
-            u64, String, String, Option<String>, String, Option<String>, Option<String>, bool, Option<u64>
-        )>(
-            "SELECT id, user, password, notes, state, avatars, auth, lockin, appid FROM u_admin WHERE id = ? AND state = 'y'"
-        )
-        .bind(id)
-        .fetch_optional(db)
-        .await;
-
-        match result {
-            Ok(Some(row)) => {
-                // 验证密码MD5
-                let stored_md5 = Self::password_md5(&row.2);
-                if stored_md5 == password_md5 {
-                    Ok(Some(AdminData {
-                        id: row.0,
-                        user: row.1,
-                        password: row.2,
-                        notes: row.3,
-                        state: row.4,
-                        avatars: row.5,
-                        auth: row.6,
-                        lockin: row.7,
-                        appid: row.8,
-                    }))
-                } else {
-                    Ok(None)
-                }
+        match self
+            .fetch_admin(|db| {
+                Box::pin(async move {
+                    sqlx::query_as::<_, AdminRow>(
+                        "SELECT id, user, password, notes, state, avatars, auth, lockin, appid \
+                         FROM u_admin WHERE id = ? AND state = 'y'"
+                    )
+                    .bind(id)
+                    .fetch_optional(&db)
+                    .await
+                })
+            })
+            .await
+        {
+            Ok(Some(row)) if constant_time_eq(&row.password, password) => {
+                Ok(Some(Self::row_to_admin_data(&row)))
             }
+            Ok(Some(_)) => Ok(None),
             Ok(None) => Ok(None),
-            Err(e) => Err(e.to_string()),
+            Err(e) => Err(e),
         }
-    }
-
-    /// 计算密码的MD5
-    #[inline]
-    fn password_md5(password: &str) -> String {
-        use crate::core::md5_optimize::{md5_hex, md5_to_str};
-        let bytes = md5_hex(password.as_bytes());
-        md5_to_str(&bytes).to_string()
     }
 }
 
 /// 缓存统计信息
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-    pub struct AdminCacheStats {
+pub struct AdminCacheStats {
     pub entries: usize,
     pub name_index_entries: usize,
 }

@@ -191,23 +191,25 @@ impl<K: Hash + Eq + Clone> FastLru<K> {
     /// 从链表中分离节点
     #[inline(always)]
     unsafe fn detach_node(&mut self, node: *mut ListNode<K>) {
-        let prev = (*node).prev.load(Ordering::Acquire);
-        let next = (*node).next.load(Ordering::Acquire);
+        let prev = unsafe { (*node).prev.load(Ordering::Acquire) };
+        let next = unsafe { (*node).next.load(Ordering::Acquire) };
 
         if !prev.is_null() {
-            (*prev).next.store(next, Ordering::Release);
+            unsafe { (*prev).next.store(next, Ordering::Release) };
         } else {
             self.head.store(next, Ordering::Release);
         }
 
         if !next.is_null() {
-            (*next).prev.store(prev, Ordering::Release);
+            unsafe { (*next).prev.store(prev, Ordering::Release) };
         } else {
             self.tail.store(prev, Ordering::Release);
         }
 
-        (*node).prev.store(std::ptr::null_mut(), Ordering::Release);
-        (*node).next.store(std::ptr::null_mut(), Ordering::Release);
+        unsafe {
+            (*node).prev.store(std::ptr::null_mut(), Ordering::Release);
+            (*node).next.store(std::ptr::null_mut(), Ordering::Release);
+        }
     }
 
     /// 将节点添加到头部
@@ -215,13 +217,12 @@ impl<K: Hash + Eq + Clone> FastLru<K> {
     unsafe fn attach_to_head(&mut self, node: *mut ListNode<K>) {
         let head = self.head.load(Ordering::Acquire);
 
-        (*node).next.store(head, Ordering::Release);
-        (*node).prev.store(std::ptr::null_mut(), Ordering::Release);
+        unsafe { (*node).next.store(head, Ordering::Release) };
+        unsafe { (*node).prev.store(std::ptr::null_mut(), Ordering::Release) };
 
         if !head.is_null() {
-            (*head).prev.store(node, Ordering::Release);
+            unsafe { (*head).prev.store(node, Ordering::Release) };
         } else {
-            // 空链表，tail 也指向 node
             self.tail.store(node, Ordering::Release);
         }
 
@@ -350,8 +351,8 @@ impl<V: Clone> CacheEntry<V> {
 
     /// 尝试更新值（CAS）
     #[inline(always)]
-    pub fn try_update(&self, new_value: V) -> bool {
-        let current_version = self.version.load(Ordering::Acquire);
+    pub fn try_update(&self, _new_value: V) -> bool {
+        let _current_version = self.version.load(Ordering::Acquire);
 
         // 简单实现：直接更新值
         // 在实际应用中需要 unsafe 来修改值
@@ -677,7 +678,7 @@ where
     /// 分片掩码（用于快速取模）
     shard_mask: usize,
     /// 配置
-    config: CacheConfig,
+    pub config: CacheConfig,
 }
 
 impl<K, V> ShardedCacheV2<K, V>

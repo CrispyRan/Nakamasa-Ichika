@@ -88,7 +88,7 @@ where
     stats: StatsCounters,
 
     /// 配置
-    config: ShardConfig,
+    pub config: ShardConfig,
 
     /// 默认 TTL
     default_ttl: Duration,
@@ -300,13 +300,13 @@ where
     shards: Vec<RwLock<CacheShard<K, V>>>,
 
     /// 分片数量
-    shard_count: usize,
+    pub shard_count: usize,
 
     /// 分片掩码
     shard_mask: usize,
 
     /// 配置
-    config: super::config::CacheConfig,
+    pub config: super::config::CacheConfig,
 }
 
 impl<K, V> ShardedCache<K, V>

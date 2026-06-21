@@ -37,6 +37,12 @@ pub struct IpLocation {
     pub province: String,
     /// 城市
     pub city: String,
+    /// 自治系统编号
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub asn: Option<u32>,
+    /// 运营商/组织名称
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub isp: Option<String>,
 }
 
 #[allow(dead_code)]
