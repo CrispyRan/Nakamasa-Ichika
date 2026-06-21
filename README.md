@@ -68,6 +68,23 @@ cd view && npm install && npm run dev
 
 ---
 
+## GeoIP 数据库（Git LFS）
+
+IP 地域查询（国家/省份/城市）和 ASN 运营商识别依赖 MaxMind GeoLite2 数据库，通过 Git LFS 管理：
+
+```bash
+# 克隆后拉取数据库文件
+git lfs pull
+
+# 文件位置（项目根目录）
+GeoLite2-City.mmdb   # ~59 MB，IP 地理位置
+GeoLite2-ASN.mmdb    # ~12 MB，ASN / 运营商
+```
+
+数据库文件不直接存入 git 历史，仅存储 LFS 指针。如果 `git lfs pull` 失败，可手动从 [MaxMind](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data) 或镜像下载同名文件放置到项目根目录。缺少数据库时 IP 地域功能自动降级（返回空信息，不影响登录核心流程）。
+
+---
+
 ## 相关资源
 
 | 文件 | 内容 |
