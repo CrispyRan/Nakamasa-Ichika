@@ -3,6 +3,9 @@ name = "nakamasa-ai"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["rlib", "dylib"]
+
 [features]
 default = ["openai", "claude", "gemini", "vllm", "sglang", "ollama", "lm_studio", "llama_cpp", "mistral_rust"]
 openai = []

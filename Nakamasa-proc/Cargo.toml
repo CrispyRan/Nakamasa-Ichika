@@ -6,7 +6,6 @@ edition = "2024"
 # 将项目标记为 proc-macro 库
 [lib]
 proc-macro = true
-# crate-type = ["proc-macro"]
 
 
 [dependencies]

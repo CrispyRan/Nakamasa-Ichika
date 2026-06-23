@@ -57,14 +57,36 @@ web/
 ## 快速启动
 
 ```bash
-# 后端
-cd Nakamasa-Ichika && cargo run
+# 后端（仅编译 Nakamasa-Ichika 及其依赖）
+cargo run
+
+# 单独编译各库为动态链接库（.so）
+cargo build -p nakamasa_utils -p nakamasa_ai -p nakamasa_proc
 
 # 前端
 cd view && npm install && npm run dev
 ```
 
 首次运行访问 `/admin/install` 完成安装配置。
+
+### Workspace 编译说明
+
+本项目的 Cargo Workspace 包含 4 个成员，其中 `default-members = ["Nakamasa-Ichika"]`：
+- **Nakamasa-Ichika** — 主应用二进制（唯一 default member）
+- **Nakamasa-utils** — 工具库（作为 Nakamasa-Ichika 的依赖静态链接）
+- **Nakamasa-Ai** — AI 客户端库（作为 Nakamasa-Ichika 的依赖静态链接）
+- **Nakamasa-proc** — 过程宏库（编译期使用）
+
+运行 `cargo build`（不带 `-p` 参数）时，Cargo **只编译 default member**（Nakamasa-Ichika）及其依赖。库 crate 即使声明了 `crate-type = ["rlib", "dylib"]`，作为依赖被拉入时也只产生 `.rlib` 静态归档，最终全部链接进 `Nakamasa-Ichika` 一个二进制文件。
+
+要获得单独的 `.so` / `.dylib` 动态链接库文件，需**显式指定包名**构建：
+```bash
+cargo build -p nakamasa_utils -p nakamasa_ai -p nakamasa_proc
+```
+
+构建产物位于 `target/debug/`（或 `target/release/`）下，分别命名为 `libnakamasa_utils.so`、`libnakamasa_ai.so`、`libnakamasa_proc.so`（过程宏库为固定名 `libnakamasa_proc.so`）。
+
+如果希望所有 workspace 成员默认都参与构建（包括生成动态库），可移除 workspace `Cargo.toml` 中的 `default-members` 配置行。
 
 ---
 

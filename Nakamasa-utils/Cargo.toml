@@ -3,6 +3,9 @@ name = "nakamasa_utils"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["rlib", "dylib"]
+
 [dependencies]
 salvo.workspace = true
 tokio.workspace = true
