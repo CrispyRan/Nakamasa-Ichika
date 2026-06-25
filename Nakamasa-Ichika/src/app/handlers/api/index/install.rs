@@ -469,7 +469,7 @@ fn write_config_file_secure(path: &str, content: &str) -> std::io::Result<()> {
 
 #[cfg(not(unix))]
 fn write_config_file_secure(path: &str, content: &str) -> std::io::Result<()> {
-    fs::write(path, content)
+    std::fs::write(path, content)
 }
 
 /// 生成 config.yaml 文件内容

@@ -1,0 +1,7 @@
+# 针对 Windows 64位目标 - 交叉编译
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+# aws-lc-sys 在 mingw POSIX 线程模型下编译 thread_pthread.c，需要 winpthread
+# rustflags 方式：使用 -Clink-arg 传递
+# 注意：重复的 rustflags 会被合并，两个 config 文件各一份 = 双倍 flag（无害）
+rustflags = ["-C", "link-arg=-lwinpthread"]

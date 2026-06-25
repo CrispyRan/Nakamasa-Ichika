@@ -18,7 +18,7 @@ use crate::app::models::requests::GetCodeRequest;
 use crate::app::plugins::mailer::{MailerConfig, MailerPlugin, SmtpMailer};
 use crate::app::plugins::sms::{AliSmsPlugin, JieSmsPlugin, SmsPlugin, TencentSmsPlugin};
 use crate::app::utils::response::{
-    render_error, render_success,
+    render_error, render_success,render_success_with_msg,
 };
 use crate::app::utils::validator::Validator;
 use crate::core::AppState;

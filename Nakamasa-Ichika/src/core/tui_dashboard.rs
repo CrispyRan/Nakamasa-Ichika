@@ -169,15 +169,23 @@ fn read_meminfo_field(field: &str) -> Option<u64> {
     None
 }
 fn get_disk_usage(path: &Path) -> (u64, u64) {
-    use nix::sys::statvfs::statvfs;
-    match statvfs(path) {
-        Ok(s) => {
-            let bs = s.block_size();
-            let total = s.blocks() * bs / 1024 / 1024;
-            let free = s.blocks_free() * bs / 1024 / 1024;
-            (total, total.saturating_sub(free))
+    #[cfg(unix)]
+    {
+        use nix::sys::statvfs::statvfs;
+        match statvfs(path) {
+            Ok(s) => {
+                let bs = s.block_size();
+                let total = s.blocks() * bs / 1024 / 1024;
+                let free = s.blocks_free() * bs / 1024 / 1024;
+                (total, total.saturating_sub(free))
+            }
+            Err(_) => (0, 0),
         }
-        Err(_) => (0, 0),
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = path;
+        (0, 0)
     }
 }
 fn get_cpu_percent() -> f64 {
