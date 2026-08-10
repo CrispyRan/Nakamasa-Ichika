@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 120" width="200" height="120">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e"/>
+      <stop offset="50%" style="stop-color:#16213e"/>
+      <stop offset="100%" style="stop-color:#0f3460"/>
+    </linearGradient>
+    <linearGradient id="playGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea"/>
+      <stop offset="100%" style="stop-color:#764ba2"/>
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="200" height="120" fill="url(#bgGrad)"/>
+  
+  <!-- Video frame lines -->
+  <line x1="0" y1="30" x2="200" y2="50" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+  <line x1="0" y1="90" x2="200" y2="70" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+  <line x1="50" y1="0" x2="30" y2="120" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+  <line x1="150" y1="0" x2="170" y2="120" stroke="rgba(255,255,255,0.05)" stroke-width="1"/>
+  
+  <!-- Play button circle -->
+  <circle cx="100" cy="60" r="25" fill="url(#playGrad)" opacity="0.9"/>
+  
+  <!-- Play triangle -->
+  <polygon points="93,48 93,72 115,60" fill="white"/>
+  
+  <!-- Video icon decoration -->
+  <rect x="20" y="95" width="30" height="4" rx="2" fill="rgba(255,255,255,0.3)"/>
+  <rect x="60" y="95" width="20" height="4" rx="2" fill="rgba(255,255,255,0.2)"/>
+  
+  <!-- Animated effect lines -->
+  <line x1="140" y1="20" x2="180" y2="20" stroke="rgba(102,126,234,0.6)" stroke-width="2"/>
+  <line x1="130" y1="28" x2="175" y2="28" stroke="rgba(118,75,162,0.4)" stroke-width="1.5"/>
+  
+  <!-- Corner decorations -->
+  <circle cx="15" cy="15" r="3" fill="rgba(102,126,234,0.5)"/>
+  <circle cx="185" cy="105" r="3" fill="rgba(118,75,162,0.5)"/>
+</svg>

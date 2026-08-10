@@ -1,0 +1,129 @@
+[workspace]
+members = ["Nakamasa-Ichika", "Nakamasa-proc", "Nakamasa-utils", "Nakamasa-Ai"]
+default-members = ["Nakamasa-Ichika"]
+resolver = "2"
+
+# ===========================================
+# 工作区级别的警告抑制
+# ===========================================
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage_nightly)'] }
+
+[workspace.lints.clippy]
+all = "warn"
+
+# ===========================================
+# Workspace Release 优化配置
+# ===========================================
+[workspace.package]
+edition = "2024"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# Framework
+tokio = { version = "*", features = ["macros", "rt-multi-thread", "signal"] }
+salvo = { version = "*", features = ["quinn", "http2", "logging", "affix-state", "serve-static", "cors"] }
+lazy_static = "1.4.0"
+
+# Serialization
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.140"
+serde_yaml = "0.8.23"
+schemars = "0.8.8"
+config = { version = "0.15.11", features = ["yaml", "toml"] }
+notify = { version = "8.2" }
+
+# Database
+sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio", "tls-rustls", "uuid", "mysql", "chrono", "macros", "any", "postgres", "sqlite", "json"] }
+maxminddb = "0.26.0"
+
+# Tracing
+tracing = "0.1.40"
+tracing-subscriber = "0.3.18"
+
+# Utility
+thiserror = "1.0"
+anyhow = "1.0.98"
+base64 = "0.22.1"
+sha2 = "0.10.9"
+rand = "0.9.1"
+hmac = "0.12.1"
+num_cpus = "1.16.0"
+chrono = "0.4.42"
+validator = "0.20.0"
+parking_lot = "0.12"
+
+deadpool-redis = { version = "0.22", features = ["rt_tokio_1"] }
+fluent-templates = "0.9"
+unic-langid = "0.9"
+once_cell = "1.19.0"
+
+async-trait = "0.1"
+regex = "1.10"
+
+# HTTP / async
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
+
+# 静态文件嵌入
+rust-embed = "8.5"
+mime_guess = "2.0"
+
+# 过程宏相关依赖
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "2.0", features = ["full", "extra-traits"] }
+
+# ONNX Runtime
+ort = { version = "2.0.0-rc.12", features = ["ndarray"] }
+ndarray = "0.17"
+
+# 图像处理
+image = "0.25"
+
+nakamasa_utils = { path = "Nakamasa-utils" }
+nakamasa_proc = { path = "Nakamasa-proc" }
+
+# JavaScript 引擎 - 在各包的 Cargo.toml 中按平台配置
+rquickjs = { version = "0.8", features = ["chrono", "bindgen"] }
+
+# 性能分析 - 火焰图支持
+pprof = { version = "0.14", features = ["flamegraph", "protobuf-codec"] }
+
+# TUI 仪表盘
+ratatui = "0.28"
+crossterm = "0.27"
+
+# ===========================================
+# Release 编译优化配置 - 性能优先
+# ===========================================
+[profile.release]
+# Link Time Optimization - 链接时优化，提高性能
+lto = "fat"
+# 代码生成优化级别 - 3 最高性能优化
+opt-level = 3
+# 并行代码生成单元 - 减少到1以获得更好的优化
+codegen-units = 1
+# Strip 符号信息 - 减少二进制大小
+strip = true
+# Panic 时展开栈（便于调试，性能影响小）
+panic = "unwind"
+
+[profile.release.package."*"]
+# 依赖库使用最高优化
+opt-level = 3
+
+# ===========================================
+# 开发环境配置（保持编译速度）
+# ===========================================
+[profile.dev]
+opt-level = 0
+debug = true
+
+# ===========================================
+# 用于开发的优化版本（快速编译+较好性能）
+# ===========================================
+[profile.dev-fast]
+inherits = "release"
+opt-level = 2
+lto = false
+strip = false

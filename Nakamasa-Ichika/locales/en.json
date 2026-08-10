@@ -1,0 +1,30 @@
+{
+  "welcome": "Welcome to our application!",
+  "hello": "Hello, {name}!",
+  "user_profile": "User: {username} | Points: {points}",
+  "error_not_found": "Resource not found",
+  
+  "_comment_terminal": "Terminal messages",
+  "app.starting": "Starting application server...",
+  "app.started": "Application server started successfully",
+  "app.stopped": "Application server stopped",
+  
+  "mysql.connected": "MySQL connection pool initialized successfully",
+  "mysql.failed": "Failed to initialize MySQL connection pool",
+  
+  "redis.connected": "Redis connection pool initialized successfully",
+  "redis.failed": "Failed to initialize Redis connection pool",
+  
+  "server.starting": "Starting server...",
+  "server.listening": "Server listening on port {port}",
+  "server.debug_mode": "Debug mode enabled, request logging active",
+  "server.creating_listener": "Creating TCP listener...",
+  "server.ready": "Server is ready to accept connections",
+  
+  "tls.loading_certs": "Loading TLS certificates...",
+  "tls.loaded": "TLS certificates loaded successfully",
+  "tls.configuring": "Configuring TLS...",
+  "tls.enabled": "TLS/HTTPS enabled",
+  
+  "quic.enabling": "Enabling QUIC protocol support..."
+}

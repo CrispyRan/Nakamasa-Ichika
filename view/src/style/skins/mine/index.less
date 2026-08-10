@@ -1,0 +1,405 @@
+[mine-skin="mine"] {
+
+  .arco-menu-light .arco-menu-has-icon .arco-icon,
+  .arco-menu-light .arco-menu-has-icon .iconify-icon,
+  .arco-menu-light .arco-menu-item .arco-icon,
+  .arco-menu-light .arco-menu-item .iconify-icon {
+    color: var(--color-text-1);
+  }
+
+  .arco-trigger-menu .arco-trigger-menu-has-icon .arco-trigger-menu-icon,
+  .sys-menus .arco-menu-icon .icon {
+    fill: var(--color-text-2);
+  }
+
+  .arco-menu-light .arco-menu-item.arco-menu-selected .arco-icon,
+  .arco-menu-light .arco-menu-item.arco-menu-selected .iconify-icon {
+    color: rgb(var(--primary-6));
+  }
+
+  .arco-menu-light .arco-menu-inline-header.arco-menu-selected .arco-menu-icon .arco-icon,
+  .arco-menu-light .arco-menu-inline-header.arco-menu-selected .arco-menu-icon .iconify-icon {
+    color: rgb(var(--primary-6));
+  }
+
+  .layout-banner-header .banner-menus li.active {
+    background-color: rgb(var(--primary-1));
+    color: rgb(var(--primary-6));
+    fill: rgb(var(--primary-6));
+  }
+
+  .layout-columns-left-panel .sider {
+    background-color: var(--color-bg-1);
+  }
+
+  .parent-menu {
+    color: var(--color-text-2);
+    fill: var(--color-text-2);
+  }
+
+  .parent-menu:hover {
+    background-color: var(--color-fill-2);
+    fill: var(--color-text-2);
+  }
+
+
+  .parent-menu.active {
+    background-color: rgb(var(--primary-1));
+    color: rgb(var(--primary-6));
+    fill: rgb(var(--primary-6));
+  }
+
+  .sys-menus .arco-menu-item.arco-menu-selected .icon {
+    fill: rgb(var(--primary-6));
+  }
+
+  // Portal 布局皮肤支持
+  .layout-portal {
+    .layout-banner-header {
+      background-color: var(--color-bg-2);
+      border-bottom: 1px solid var(--color-border-1);
+    }
+    
+    .work-area {
+      background-color: var(--color-neutral-2);
+    }
+  }
+
+  // 应用列表页面玻璃拟态卡片
+  .app-list-page .app-card {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(1px) saturate(120%);
+    -webkit-backdrop-filter: blur(1px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+    
+    &:hover {
+      background: rgba(255, 255, 255, 0.5);
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    }
+  }
+  
+  // 全局卡片透明化（去掉work-area限制）
+  .arco-card {
+    background: rgba(255, 255, 255, 0.4);
+    backdrop-filter: blur(1px) saturate(120%);
+    -webkit-backdrop-filter: blur(1px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.06);
+  }
+  
+  // 全局表格透明化
+  .arco-card .arco-table-container,
+  .arco-card .arco-table,
+  .arco-card .arco-table-th,
+  .arco-card .arco-table-td,
+  .arco-card .arco-table-tr {
+    background: transparent !important;
+  }
+  
+  .arco-card .arco-table-tr:hover .arco-table-td {
+    background: rgba(0, 0, 0, 0.04) !important;
+  }
+  
+  // 全局Modal弹窗透明化
+  .arco-modal .arco-modal-modal {
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(2px) saturate(150%);
+    -webkit-backdrop-filter: blur(2px) saturate(150%);
+  }
+  
+  // 仪表盘 ma-content-block 透明化
+  .ma-content-block {
+    background: rgba(255, 255, 255, 0.4) !important;
+    backdrop-filter: blur(1px) saturate(120%);
+    -webkit-backdrop-filter: blur(1px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    
+    // 内部表格透明化
+    .arco-table,
+    .arco-table-container,
+    .arco-table-th,
+    .arco-table-td,
+    .arco-table-tr,
+    .arco-table-header,
+    .arco-table-body {
+      background: transparent !important;
+    }
+    
+    .arco-table-tr:hover .arco-table-td {
+      background: rgba(0, 0, 0, 0.03) !important;
+    }
+  }
+  
+  // 仪表盘 panel 透明化
+  .panel {
+    background: rgba(255, 255, 255, 0.7) !important;
+    backdrop-filter: blur(2px) saturate(150%);
+    -webkit-backdrop-filter: blur(2px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    
+    .panel-col {
+      border-right-color: rgba(0, 0, 0, 0.08);
+    }
+  }
+  
+  // arco-grid-item 透明化
+  .arco-grid-item {
+    background: transparent !important;
+  }
+  
+  // arco-space 透明化
+  .arco-space {
+    background: transparent !important;
+  }
+  
+  // arco-statistic 透明化
+  .arco-statistic {
+    background: transparent !important;
+  }
+  
+  // 仪表盘 general-card 透明化
+  .general-card {
+    background: transparent !important;
+    
+    .arco-card-header,
+    .arco-card-body {
+      background: transparent !important;
+    }
+  }
+  
+  // arco-grid 透明化
+  .arco-grid {
+    background: transparent !important;
+  }
+  
+  // 用户管理页面透明化
+  .user-management {
+    .stat-card,
+    .search-card,
+    .table-card {
+      background: rgba(255, 255, 255, 0.4);
+      backdrop-filter: blur(1px) saturate(120%);
+      -webkit-backdrop-filter: blur(1px) saturate(120%);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+    
+    // 表格透明化
+    .table-card .arco-table,
+    .table-card .arco-table-container,
+    .table-card .arco-table-th,
+    .table-card .arco-table-td,
+    .table-card .arco-table-tr,
+    .table-card .arco-table-header,
+    .table-card .arco-table-body,
+    .table-card .arco-table-content,
+    .table-card .arco-table-element,
+    .table-card .arco-table-thead,
+    .table-card .arco-table-header-wrap,
+    .table-card .arco-table-tr-checked .arco-table-td,
+    .table-card .arco-table-tr-selected .arco-table-td {
+      background: transparent !important;
+    }
+    
+    .table-card .arco-table-tr:hover .arco-table-td {
+      background: rgba(0, 0, 0, 0.03) !important;
+    }
+    
+    .table-card .arco-table-tr-checked .arco-table-td,
+    .table-card .arco-table-tr-selected .arco-table-td {
+      background: rgba(var(--primary-6), 0.08) !important;
+    }
+    
+    .table-card .arco-table-th {
+      background: rgba(0, 0, 0, 0.02) !important;
+    }
+  }
+  
+  // 用户编辑页面透明化
+  .user-edit-page {
+    .user-header-card,
+    .content-card {
+      background: rgba(255, 255, 255, 0.4);
+      backdrop-filter: blur(1px) saturate(120%);
+      -webkit-backdrop-filter: blur(1px) saturate(120%);
+      border: 1px solid rgba(255, 255, 255, 0.5);
+    }
+    
+    .form-section {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .device-item,
+    .extend-item {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .user-stats,
+    .header-footer {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  }
+  
+}
+
+// mine 皮肤暗色模式玻璃效果
+[mine-skin="mine"][arco-theme="dark"] {
+  .app-list-page .app-card {
+    background: rgba(50, 50, 50, 0.35);
+    border-color: rgba(255, 255, 255, 0.08);
+    
+    &:hover {
+      background: rgba(60, 60, 60, 0.4);
+    }
+  }
+  
+  // 全局卡片透明化（暗色）
+  .arco-card {
+    background: rgba(50, 50, 50, 0.35);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+  
+  // 全局表格透明化（暗色）
+  .arco-card .arco-table-container,
+  .arco-card .arco-table,
+  .arco-card .arco-table-th,
+  .arco-card .arco-table-td,
+  .arco-card .arco-table-tr {
+    background: transparent !important;
+  }
+  
+  .arco-card .arco-table-tr:hover .arco-table-td {
+    background: rgba(255, 255, 255, 0.06) !important;
+  }
+  
+  // 全局Modal弹窗透明化（暗色）
+  .arco-modal .arco-modal-modal {
+    background: rgba(40, 40, 40, 0.85);
+    backdrop-filter: blur(2px) saturate(150%);
+    -webkit-backdrop-filter: blur(2px) saturate(150%);
+  }
+  
+  // 仪表盘 ma-content-block 透明化（暗色）
+  .ma-content-block {
+    background: rgba(50, 50, 50, 0.35);
+    border-color: rgba(255, 255, 255, 0.08);
+    
+    // 内部表格透明化
+    .arco-table,
+    .arco-table-container,
+    .arco-table-th,
+    .arco-table-td,
+    .arco-table-tr,
+    .arco-table-header,
+    .arco-table-body {
+      background: transparent !important;
+    }
+    
+    .arco-table-tr:hover .arco-table-td {
+      background: rgba(255, 255, 255, 0.05) !important;
+    }
+  }
+  
+  // 仪表盘 panel 透明化（暗色）
+  .panel {
+    background: rgba(50, 50, 50, 0.6) !important;
+    border-color: rgba(255, 255, 255, 0.08);
+    
+    .panel-col {
+      border-right-color: rgba(255, 255, 255, 0.08);
+    }
+  }
+  
+  // arco-grid-item 透明化（暗色）
+  .arco-grid-item {
+    background: transparent !important;
+  }
+  
+  // arco-space 透明化（暗色）
+  .arco-space {
+    background: transparent !important;
+  }
+  
+  // arco-statistic 透明化（暗色）
+  .arco-statistic {
+    background: transparent !important;
+  }
+  
+  // 仪表盘 general-card 透明化（暗色）
+  .general-card {
+    background: transparent !important;
+    
+    .arco-card-header,
+    .arco-card-body {
+      background: transparent !important;
+    }
+  }
+  
+  // arco-grid 透明化（暗色）
+  .arco-grid {
+    background: transparent !important;
+  }
+  
+  // 用户管理页面透明化（暗色）
+  .user-management {
+    .stat-card,
+    .search-card,
+    .table-card {
+      background: rgba(50, 50, 50, 0.35);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+    
+    // 表格透明化（暗色）
+    .table-card .arco-table,
+    .table-card .arco-table-container,
+    .table-card .arco-table-th,
+    .table-card .arco-table-td,
+    .table-card .arco-table-tr,
+    .table-card .arco-table-header,
+    .table-card .arco-table-body,
+    .table-card .arco-table-content,
+    .table-card .arco-table-element,
+    .table-card .arco-table-thead,
+    .table-card .arco-table-header-wrap,
+    .table-card .arco-table-tr-checked .arco-table-td,
+    .table-card .arco-table-tr-selected .arco-table-td {
+      background: transparent !important;
+    }
+    
+    .table-card .arco-table-tr:hover .arco-table-td {
+      background: rgba(255, 255, 255, 0.05) !important;
+    }
+    
+    .table-card .arco-table-tr-checked .arco-table-td,
+    .table-card .arco-table-tr-selected .arco-table-td {
+      background: rgba(var(--primary-6), 0.15) !important;
+    }
+    
+    .table-card .arco-table-th {
+      background: rgba(255, 255, 255, 0.03) !important;
+    }
+  }
+  
+  // 用户编辑页面透明化（暗色）
+  .user-edit-page {
+    .user-header-card,
+    .content-card {
+      background: rgba(50, 50, 50, 0.35);
+      border-color: rgba(255, 255, 255, 0.08);
+    }
+    
+    .form-section {
+      background: rgba(40, 40, 40, 0.3);
+    }
+    
+    .device-item,
+    .extend-item {
+      background: rgba(40, 40, 40, 0.3);
+    }
+    
+    .user-stats,
+    .header-footer {
+      background: rgba(40, 40, 40, 0.2);
+    }
+  }
+}

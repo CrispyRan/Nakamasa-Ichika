@@ -1,0 +1,4 @@
+*.mmdb filter=lfs diff=lfs merge=lfs -text
+*.onnx filter=lfs diff=lfs merge=lfs -text
+GeoLite2-*.mmdb filter=lfs diff=lfs merge=lfs -text
+models/*.onnx filter=lfs diff=lfs merge=lfs -text

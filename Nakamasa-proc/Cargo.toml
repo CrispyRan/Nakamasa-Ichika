@@ -1,0 +1,21 @@
+[package]
+name = "nakamasa_proc"
+version = "0.1.0"
+edition = "2024"
+
+# 将项目标记为 proc-macro 库
+[lib]
+proc-macro = true
+
+
+[dependencies]
+salvo.workspace = true
+tokio.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+async-trait.workspace = true
+
+proc-macro2.workspace = true
+quote.workspace = true
+syn.workspace = true

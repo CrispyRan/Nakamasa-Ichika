@@ -1,0 +1,612 @@
+// 视频皮肤样式
+[mine-skin="video"] {
+  // 全局视频背景容器
+  .video-bg-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    overflow: hidden;
+    
+    &::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(
+        135deg,
+        rgba(0, 0, 0, 0.15) 0%,
+        rgba(0, 0, 0, 0.08) 50%,
+        rgba(0, 0, 0, 0.2) 100%
+      );
+      pointer-events: none;
+    }
+    
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+  }
+
+  .main-container {
+    background: transparent !important;
+  }
+
+  .logo {
+    border-bottom: 0;
+  }
+
+  .sys-menus .arco-menu-icon .icon {
+    fill: #fff;
+  }
+
+  // 侧边栏
+  .arco-layout-sider,
+  .arco-layout-sider-light,
+  .arco-menu-light {
+    background: rgba(60, 60, 65, 0.5);
+  }
+
+  // 头部
+  .layout-classic-header .layout-classic-header-container {
+    background: rgba(60, 60, 65, 0.5);
+  }
+
+  // 标签栏
+  .tags-container {
+    background: rgba(60, 60, 65, 0.5);
+    border: 0;
+    
+    .tags {
+      background: transparent;
+      border: 0;
+      
+      div {
+        color: var(--color-white);
+      }
+    }
+  }
+
+  .logo span,
+  .arco-breadcrumb div,
+  .arco-breadcrumb-item:last-child .layout-banner-header .banner-menus li.active,
+  .arco-menu-light .arco-menu-pop-header,
+  .layout-banner-header .banner-menus li {
+    color: var(--color-white);
+    fill: var(--color-white);
+  }
+
+  .layout-banner-header .banner-menus li:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .layout-banner-header .banner-menus li.active {
+    background: rgb(var(--primary-6));
+  }
+
+  // 操作按钮
+  .operation-area .arco-btn-secondary {
+    background-color: rgba(255, 255, 255, 0.15);
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+
+  .operation-area .arco-btn-secondary:hover,
+  .operation-area .arco-btn-secondary[type='button']:hover {
+    background-color: rgba(255, 255, 255, 0.25);
+    color: #fff;
+  }
+
+  // 菜单项
+  .arco-menu-light .arco-menu-item {
+    background-color: rgba(255, 255, 255, 0);
+    color: #fff;
+    fill: #fff;
+  }
+
+  .arco-menu-light .arco-menu-item:hover,
+  .arco-menu-light .arco-menu-inline-header:hover,
+  .arco-menu-light .arco-menu-item.arco-menu-selected {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .ma-menu .icon,
+  .arco-menu-selected .icon {
+    fill: #fff;
+  }
+
+  .arco-menu-light .arco-menu-inline-header,
+  .arco-menu-light .arco-menu-pop-header,
+  .arco-menu-light .arco-menu-collapse-button,
+  .arco-menu-light .arco-menu-collapse-button:hover {
+    background-color: rgba(255, 255, 255, 0);
+  }
+
+  .arco-menu-light .arco-menu-inline-header.arco-menu-selected:hover,
+  .arco-menu-light .arco-menu-pop-header:hover,
+  .arco-menu-light .arco-menu-pop-header.arco-menu-selected,
+  .arco-menu-light.arco-menu-horizontal .arco-menu-pop-header.arco-menu-selected:hover {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .arco-menu-light .arco-menu-pop-header .arco-icon,
+  .arco-menu-light .arco-menu-pop-header.arco-menu-selected .arco-menu-icon,
+  .arco-menu-light .arco-menu-item .arco-icon,
+  .arco-menu-light .arco-menu-item .arco-menu-icon,
+  .arco-menu-light .arco-menu-inline-header .arco-icon,
+  .arco-menu-light .arco-menu-inline-header {
+    color: #fff;
+  }
+
+  // 工作区域
+  .work-area {
+    position: relative;
+    background: rgba(70, 70, 75, 0.5);
+    border-radius: 12px;
+    margin: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  // columns 布局支持
+  .layout-columns-left-panel {
+    .menu-title {
+      height: 51px;
+      padding-left: 10px;
+      font-weight: bold;
+      color: #fff;
+      background-color: rgba(60, 60, 65, 0.5);
+      border-bottom: none;
+    }
+  }
+
+  .layout-columns-right-panel,
+  .layout-columns-right-panel .layout-header {
+    background-color: transparent;
+    box-shadow: none;
+
+    .work-area {
+      height: calc(100% - 85px);
+    }
+  }
+
+  .layout-columns-left-panel .sider {
+    background-color: rgba(60, 60, 65, 0.5);
+  }
+
+  // Portal 布局皮肤支持
+  .layout-portal {
+    background: transparent !important;
+    
+    .arco-layout {
+      background: transparent !important;
+    }
+    
+    .arco-layout-header {
+      background: transparent !important;
+    }
+    
+    .arco-layout-content {
+      background: transparent !important;
+    }
+    
+    .layout-banner-header {
+      background: rgba(60, 60, 65, 0.5);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    
+    .logo span {
+      color: var(--color-white);
+    }
+    
+    .work-area {
+      background: rgba(70, 70, 75, 0.5);
+    }
+    
+    // 应用列表页面透明
+    .app-list-page {
+      background: transparent !important;
+    }
+  }
+
+  // 应用列表页面卡片
+  .app-list-page {
+    .app-card {
+      background: rgba(80, 80, 85, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      
+      &:hover {
+        background: rgba(90, 90, 95, 0.4);
+        border-color: rgba(255, 255, 255, 0.15);
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+        transform: translateY(-2px);
+        transition: all 0.3s ease;
+      }
+      
+      :deep(.arco-card-header) {
+        background: transparent;
+      }
+      
+      :deep(.arco-card-body) {
+        background: transparent;
+      }
+    }
+  }
+  
+  // 全局卡片透明化（去掉work-area限制）
+  .arco-card {
+    background: rgba(80, 80, 85, 0.35);
+    backdrop-filter: blur(1px) saturate(120%);
+    -webkit-backdrop-filter: blur(1px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  
+  // 全局表格透明化
+  .arco-card .arco-table-container,
+  .arco-card .arco-table,
+  .arco-card .arco-table-th,
+  .arco-card .arco-table-td,
+  .arco-card .arco-table-tr {
+    background: transparent !important;
+  }
+  
+  .arco-card .arco-table-tr:hover .arco-table-td {
+    background: rgba(255, 255, 255, 0.06) !important;
+  }
+  
+  // 全局Modal弹窗透明化
+  .arco-modal .arco-modal-modal {
+    background: rgba(70, 70, 75, 0.85);
+    backdrop-filter: blur(2px) saturate(150%);
+    -webkit-backdrop-filter: blur(2px) saturate(150%);
+  }
+  
+  // 仪表盘 ma-content-block 透明化
+  .ma-content-block {
+    background: rgba(80, 80, 85, 0.35) !important;
+    backdrop-filter: blur(1px) saturate(120%);
+    -webkit-backdrop-filter: blur(1px) saturate(120%);
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    
+    // 内部表格透明化
+    .arco-table,
+    .arco-table-container,
+    .arco-table-th,
+    .arco-table-td,
+    .arco-table-tr,
+    .arco-table-header,
+    .arco-table-body {
+      background: transparent !important;
+    }
+    
+    .arco-table-tr:hover .arco-table-td {
+      background: rgba(255, 255, 255, 0.05) !important;
+    }
+    
+    // 表格标题
+    .arco-table-th {
+      color: var(--color-text-2);
+    }
+  }
+  
+  // 仪表盘 panel 透明化 - 更强优先级
+  .arco-grid.panel,
+  .panel.arco-grid,
+  div.panel {
+    background: rgba(80, 80, 85, 0.55) !important;
+    backdrop-filter: blur(2px) saturate(150%);
+    -webkit-backdrop-filter: blur(2px) saturate(150%);
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+  }
+  
+  .panel .panel-col,
+  .arco-grid .panel-col {
+    border-right-color: rgba(255, 255, 255, 0.1) !important;
+  }
+  
+  // 仪表盘 general-card 透明化
+  .general-card,
+  .general-card.arco-card {
+    background: transparent !important;
+    
+    .arco-card-header {
+      background: transparent !important;
+    }
+    
+    .arco-card-body {
+      background: transparent !important;
+    }
+  }
+  
+  // arco-grid 内部所有元素透明
+  .arco-grid,
+  .arco-grid-item,
+  .arco-space,
+  .arco-space-item,
+  .arco-statistic,
+  .arco-statistic-title,
+  .arco-statistic-content,
+  .arco-statistic-value,
+  .arco-avatar {
+    background: transparent !important;
+  }
+  
+  .arco-grid {
+    background: transparent !important;
+  }
+  
+  // 用户管理页面透明化
+  .user-management {
+    .stat-card,
+    .search-card,
+    .table-card {
+      background: rgba(80, 80, 85, 0.35);
+      backdrop-filter: blur(1px) saturate(120%);
+      -webkit-backdrop-filter: blur(1px) saturate(120%);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    // 表格透明化
+    .table-card .arco-table,
+    .table-card .arco-table-container,
+    .table-card .arco-table-th,
+    .table-card .arco-table-td,
+    .table-card .arco-table-tr,
+    .table-card .arco-table-header,
+    .table-card .arco-table-body,
+    .table-card .arco-table-content,
+    .table-card .arco-table-element,
+    .table-card .arco-table-thead,
+    .table-card .arco-table-header-wrap,
+    .table-card .arco-table-tr-checked .arco-table-td,
+    .table-card .arco-table-tr-selected .arco-table-td {
+      background: transparent !important;
+    }
+    
+    .table-card .arco-table-tr:hover .arco-table-td {
+      background: rgba(255, 255, 255, 0.05) !important;
+    }
+    
+    .table-card .arco-table-tr-checked .arco-table-td,
+    .table-card .arco-table-tr-selected .arco-table-td {
+      background: rgba(var(--primary-6), 0.15) !important;
+    }
+  }
+  
+  // 用户编辑页面透明化
+  .user-edit-page {
+    .user-header-card,
+    .content-card {
+      background: rgba(80, 80, 85, 0.35);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    
+    .form-section {
+      background: rgba(80, 80, 85, 0.25);
+    }
+    
+    .device-item,
+    .extend-item {
+      background: rgba(80, 80, 85, 0.25);
+    }
+    
+    .user-stats,
+    .header-footer {
+      background: rgba(80, 80, 85, 0.2);
+    }
+  }
+
+  // 父级菜单
+  .parent-menu.active {
+    background-color: rgba(255, 255, 255, 0.12);
+  }
+  
+  .parent-menu:hover {
+    background-color: rgba(255, 255, 255, 0.08);
+  }
+}
+
+// 视频皮肤暗色模式
+[mine-skin="video"][arco-theme="dark"] {
+  .work-area {
+    background: rgba(50, 50, 55, 0.55);
+    border-color: rgba(255, 255, 255, 0.05);
+  }
+
+  .arco-trigger-menu .arco-trigger-menu-has-icon .arco-trigger-menu-icon {
+    fill: #fff;
+  }
+
+  .arco-layout-sider,
+  .arco-layout-sider-light,
+  .arco-menu-light {
+    background: rgba(45, 45, 50, 0.5);
+  }
+
+  .layout-classic-header .layout-classic-header-container {
+    background: rgba(45, 45, 50, 0.5);
+  }
+
+  // Portal 布局暗色模式
+  .layout-portal {
+    .arco-layout,
+    .arco-layout-header,
+    .arco-layout-content {
+      background: transparent !important;
+    }
+    
+    .layout-banner-header {
+      background: rgba(45, 45, 50, 0.5);
+    }
+    
+    .work-area {
+      background: rgba(50, 50, 55, 0.55);
+    }
+    
+    .app-list-page {
+      background: transparent !important;
+    }
+  }
+
+  // 应用列表页面卡片
+  .app-list-page .app-card {
+    background: rgba(55, 55, 60, 0.35);
+    border-color: rgba(255, 255, 255, 0.06);
+    
+    &:hover {
+      background: rgba(65, 65, 70, 0.4);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+  }
+  
+  // 全局卡片透明化（暗色）
+  .arco-card {
+    background: rgba(55, 55, 60, 0.35);
+    border-color: rgba(255, 255, 255, 0.06);
+  }
+  
+  // 全局表格透明化（暗色）
+  .arco-card .arco-table-container,
+  .arco-card .arco-table,
+  .arco-card .arco-table-th,
+  .arco-card .arco-table-td,
+  .arco-card .arco-table-tr {
+    background: transparent !important;
+  }
+  
+  .arco-card .arco-table-tr:hover .arco-table-td {
+    background: rgba(255, 255, 255, 0.06) !important;
+  }
+  
+  // 全局Modal弹窗透明化（暗色）
+  .arco-modal .arco-modal-modal {
+    background: rgba(45, 45, 50, 0.85);
+    backdrop-filter: blur(2px) saturate(150%);
+    -webkit-backdrop-filter: blur(2px) saturate(150%);
+  }
+  
+  // 仪表盘 ma-content-block 透明化（暗色）
+  .ma-content-block {
+    background: rgba(55, 55, 60, 0.35);
+    border-color: rgba(255, 255, 255, 0.06);
+    
+    // 内部表格透明化
+    .arco-table,
+    .arco-table-container,
+    .arco-table-th,
+    .arco-table-td,
+    .arco-table-tr,
+    .arco-table-header,
+    .arco-table-body {
+      background: transparent !important;
+    }
+    
+    .arco-table-tr:hover .arco-table-td {
+      background: rgba(255, 255, 255, 0.05) !important;
+    }
+  }
+  
+  // 仪表盘 panel 透明化（暗色）
+  .panel {
+    background: rgba(55, 55, 60, 0.6) !important;
+    border-color: rgba(255, 255, 255, 0.06);
+    
+    .panel-col {
+      border-right-color: rgba(255, 255, 255, 0.06);
+    }
+  }
+  
+  // arco-grid-item 透明化（暗色）
+  .arco-grid-item {
+    background: transparent !important;
+  }
+  
+  // arco-space 透明化（暗色）
+  .arco-space {
+    background: transparent !important;
+  }
+  
+  // arco-statistic 透明化（暗色）
+  .arco-statistic {
+    background: transparent !important;
+  }
+  
+  // 仪表盘 general-card 透明化（暗色）
+  .general-card {
+    background: transparent !important;
+    
+    .arco-card-header,
+    .arco-card-body {
+      background: transparent !important;
+    }
+  }
+  
+  // arco-grid 透明化（暗色）
+  .arco-grid {
+    background: transparent !important;
+  }
+  
+  // 用户管理页面透明化（暗色）
+  .user-management {
+    .stat-card,
+    .search-card,
+    .table-card {
+      background: rgba(55, 55, 60, 0.35);
+      border-color: rgba(255, 255, 255, 0.06);
+    }
+    
+    // 表格透明化（暗色）
+    .table-card .arco-table,
+    .table-card .arco-table-container,
+    .table-card .arco-table-th,
+    .table-card .arco-table-td,
+    .table-card .arco-table-tr,
+    .table-card .arco-table-header,
+    .table-card .arco-table-body,
+    .table-card .arco-table-content,
+    .table-card .arco-table-element,
+    .table-card .arco-table-thead,
+    .table-card .arco-table-header-wrap,
+    .table-card .arco-table-tr-checked .arco-table-td,
+    .table-card .arco-table-tr-selected .arco-table-td {
+      background: transparent !important;
+    }
+    
+    .table-card .arco-table-tr:hover .arco-table-td {
+      background: rgba(255, 255, 255, 0.05) !important;
+    }
+    
+    .table-card .arco-table-tr-checked .arco-table-td,
+    .table-card .arco-table-tr-selected .arco-table-td {
+      background: rgba(var(--primary-6), 0.15) !important;
+    }
+  }
+  
+  // 用户编辑页面透明化（暗色）
+  .user-edit-page {
+    .user-header-card,
+    .content-card {
+      background: rgba(55, 55, 60, 0.35);
+      border-color: rgba(255, 255, 255, 0.06);
+    }
+    
+    .form-section {
+      background: rgba(55, 55, 60, 0.25);
+    }
+    
+    .device-item,
+    .extend-item {
+      background: rgba(55, 55, 60, 0.25);
+    }
+    
+    .user-stats,
+    .header-footer {
+      background: rgba(55, 55, 60, 0.2);
+    }
+  }
+}

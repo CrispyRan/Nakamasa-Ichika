@@ -1,0 +1,56 @@
+[package]
+name = "nakamasa_utils"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["rlib", "dylib"]
+
+[dependencies]
+salvo.workspace = true
+tokio.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+sqlx.workspace = true
+
+base64.workspace = true
+sha2.workspace = true
+rand.workspace = true
+hmac.workspace = true
+maxminddb.workspace = true
+
+async-trait.workspace = true
+thiserror.workspace = true
+chrono.workspace = true
+lazy_static.workspace = true
+once_cell.workspace = true
+
+# Tracing
+tracing.workspace = true
+
+# ONNX Runtime 人脸识别
+ort.workspace = true
+ndarray.workspace = true
+image.workspace = true
+reqwest.workspace = true
+
+# 高性能缓存额外依赖
+parking_lot = { version = "0.12", optional = true }
+crossbeam = { version = "0.8", optional = true }
+
+# 分布式缓存依赖
+fnv = "1.0"
+uuid = { version = "1.0", features = ["v4"] }
+lru = "0.12"
+
+# 加密依赖
+aes = "0.8"
+cbc = "0.1"
+aes-gcm = "0.10"
+sha3 = "0.10"
+
+[features]
+default = ["advanced-concurrency"]
+# 启用高级并发特性（包含 V2 优化）
+advanced-concurrency = ["parking_lot", "crossbeam"]

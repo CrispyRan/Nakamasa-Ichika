@@ -1,0 +1,30 @@
+{
+  "welcome": "欢迎使用我们的应用程序！",
+  "hello": "你好，{name}！",
+  "user_profile": "用户: {username} | 积分: {points}",
+  "error_not_found": "资源未找到",
+  
+  "_comment_terminal": "终端消息",
+  "app.starting": "正在启动应用服务器...",
+  "app.started": "应用服务器启动成功",
+  "app.stopped": "应用服务器已停止",
+  
+  "mysql.connected": "MySQL连接池初始化成功",
+  "mysql.failed": "MySQL连接池初始化失败",
+  
+  "redis.connected": "Redis连接池初始化成功",
+  "redis.failed": "Redis连接池初始化失败",
+  
+  "server.starting": "正在启动服务器...",
+  "server.listening": "服务器正在端口 {port} 上监听",
+  "server.debug_mode": "调试模式已启用，请求日志已激活",
+  "server.creating_listener": "正在创建TCP监听器...",
+  "server.ready": "服务器已就绪，可以接受连接",
+  
+  "tls.loading_certs": "正在加载TLS证书...",
+  "tls.loaded": "TLS证书加载成功",
+  "tls.configuring": "正在配置TLS...",
+  "tls.enabled": "已启用 TLS/HTTPS",
+  
+  "quic.enabling": "正在启用QUIC协议支持..."
+}

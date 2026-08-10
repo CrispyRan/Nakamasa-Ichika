@@ -1,0 +1,89 @@
+# Rust build directory
+target/
+
+# Configuration files with sensitive data
+config.yaml
+**/config.yaml
+*.yaml
+!*.example.yaml
+
+# Environment files
+.env
+.env.*
+.env.local
+.env.production
+
+# SSL/TLS certificates and keys
+*.pem
+*.key
+*.crt
+*.csr
+certs/
+ssl/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+dump.rdb
+
+# Install lock file
+install.lock
+
+# Log files
+log/
+logs/
+*.log
+
+# But keep source code logs directories tracked
+!Nakamasa-Ichika/src/**/logs/
+
+# Upload directory (user generated content)
+data/upload/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# SQL dump files
+*.sql
+
+# Node.js
+test/node_modules/
+node_modules/
+
+# AI助手配置文件和文档 - 不上传到GitHub
+CLAUDE.md
+AGENTS.md
+QWEN.md
+agent.md
+.claude/
+.qwen/
+.iflowignore
+
+# 参考项目模板 - 不上传
+arco-design-pro/
+.opencode/

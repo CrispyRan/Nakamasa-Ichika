@@ -1,0 +1,1 @@
+import{q as r,o as a,ar as l,b5 as u}from"./index-C90b9iXl.js";const i=s=>{const o={},n=r([]),t=()=>{if(o.value){const e=u(o.value,s);(e.length!==n.value.length||e.toString()!==n.value.toString())&&(n.value=e)}};return a(()=>t()),l(()=>t()),{children:o,components:n}};export{i as u};

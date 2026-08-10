@@ -1,0 +1,543 @@
+import CryptoJS from 'crypto-js'
+import CityLinkageJson from '@/components/ma-cityLinkage/lib/city.json'
+
+/**
+ * 根据类型获取颜色
+ */
+const typeColor = (type = 'default') => {
+  let color = ''
+  switch (type) {
+    case 'default':
+      color = '#35495E'
+      break
+    case 'primary':
+      color = '#3488ff'
+      break
+    case 'success':
+      color = '#43B883'
+      break
+    case 'warning':
+      color = '#e6a23c'
+      break
+    case 'danger':
+      color = '#f56c6c'
+      break
+    default:
+      break
+  }
+  return color
+}
+
+const tool = {}
+
+/**
+ * LocalStorage
+ */
+tool.local = {
+  set(table, settings) {
+    let _set = JSON.stringify(settings)
+    return localStorage.setItem(table, _set)
+  },
+  get(table) {
+    let data = localStorage.getItem(table)
+    try {
+      data = JSON.parse(data)
+    } catch (err) {
+      return null
+    }
+    return data
+  },
+  remove(table) {
+    return localStorage.removeItem(table)
+  },
+  clear() {
+    return localStorage.clear()
+  }
+}
+
+/**
+ * SessionStorage
+ */
+tool.session = {
+  set(table, settings) {
+    let _set = JSON.stringify(settings)
+    return sessionStorage.setItem(table, _set)
+  },
+  get(table) {
+    let data = sessionStorage.getItem(table)
+    try {
+      data = JSON.parse(data)
+    } catch (err) {
+      return null
+    }
+    return data
+  },
+  remove(table) {
+    return sessionStorage.removeItem(table)
+  },
+  clear() {
+    return sessionStorage.clear()
+  }
+}
+
+/**
+ * CookieStorage
+ */
+tool.cookie = {
+  set(name, value, config = {}) {
+    var cfg = {
+      expires: null,
+      path: null,
+      domain: null,
+      secure: false,
+      httpOnly: false,
+      ...config
+    }
+    var cookieStr = `${name}=${escape(value)}`
+    if (cfg.expires) {
+      var exp = new Date()
+      exp.setTime(exp.getTime() + parseInt(cfg.expires) * 1000)
+      cookieStr += `;expires=${exp.toGMTString()}`
+    }
+    if (cfg.path) {
+      cookieStr += `;path=${cfg.path}`
+    }
+    if (cfg.domain) {
+      cookieStr += `;domain=${cfg.domain}`
+    }
+    document.cookie = cookieStr
+  },
+  get(name) {
+    var arr = document.cookie.match(
+      new RegExp('(^| )' + name + '=([^;]*)(;|$)')
+    )
+    if (arr != null) {
+      return unescape(arr[2])
+    } else {
+      return null
+    }
+  },
+  remove(name) {
+    var exp = new Date()
+    exp.setTime(exp.getTime() - 1)
+    document.cookie = `${name}=;expires=${exp.toGMTString()}`
+  }
+}
+
+/**
+ * 全屏操作
+ */
+tool.screen = (element) => {
+  let isFull = !!(
+    document.webkitIsFullScreen ||
+    document.mozFullScreen ||
+    document.msFullscreenElement ||
+    document.fullscreenElement
+  )
+  if (isFull) {
+    if (document.exitFullscreen) {
+      document.exitFullscreen()
+    } else if (document.msExitFullscreen) {
+      document.msExitFullscreen()
+    } else if (document.mozCancelFullScreen) {
+      document.mozCancelFullScreen()
+    } else if (document.webkitExitFullscreen) {
+      document.webkitExitFullscreen()
+    }
+  } else {
+    if (element.requestFullscreen) {
+      element.requestFullscreen()
+    } else if (element.msRequestFullscreen) {
+      element.msRequestFullscreen()
+    } else if (element.mozRequestFullScreen) {
+      element.mozRequestFullScreen()
+    } else if (element.webkitRequestFullscreen) {
+      element.webkitRequestFullscreen()
+    }
+  }
+}
+
+/**
+ * 获取设备信息
+ */
+tool.getDevice = function () {
+  const hasTouchScreen =
+    'ontouchstart' in window || navigator.maxTouchPoints > 0
+  const isSmallScreen = window.innerWidth < 768
+
+  if (hasTouchScreen && isSmallScreen) {
+    return 'mobile'
+  } else {
+    return 'desktop'
+  }
+}
+
+/**
+ * 处理图片
+ */
+tool.parseImage = (url) => {
+  if (url === undefined) {
+    return import.meta.env.VITE_APP_BASE + 'not-image.png'
+  }
+  if (typeof url === 'string' && url !== null) {
+    return url
+  } else {
+    if (url !== null) {
+      return url[0]
+    } else {
+      return import.meta.env.VITE_APP_BASE + 'not-image.png'
+    }
+  }
+}
+
+/**
+ * 城市代码翻译成名称
+ */
+tool.cityToCode = function (
+  province,
+  city = undefined,
+  area = undefined,
+  split = ' / '
+) {
+  try {
+    let provinceData = CityLinkageJson.filter(
+      (item) => province == item.code
+    )[0]
+    if (!city) {
+      return provinceData.name
+    }
+    let cityData = provinceData.children.filter((item) => city == item.code)[0]
+
+    if (!area) {
+      return [provinceData.name, cityData.name].join(split)
+    }
+    let areaData = cityData.children.filter((item) => area == item.code)[0]
+
+    return [provinceData.name, cityData.name, areaData.name].join(split)
+  } catch (e) {
+    return ''
+  }
+}
+
+/**
+ * 复制对象
+ */
+tool.objCopy = (obj) => {
+  if (obj === undefined) {
+    return undefined
+  }
+  return JSON.parse(JSON.stringify(obj))
+}
+
+/**
+ * 生车随机id
+ */
+tool.generateId = function () {
+  return Math.floor(
+    Math.random() * 100000 + Math.random() * 20000 + Math.random() * 5000
+  )
+}
+
+/**
+ * 生成全球唯一标识
+ * @returns uuid
+ */
+tool.uuid = () => {
+  const hexList = []
+  for (let i = 0; i <= 15; i++) {
+    hexList[i] = i.toString(16)
+  }
+  let uuid = ''
+  for (let i = 1; i <= 36; i++) {
+    if (i === 9 || i === 14 || i === 19 || i === 24) {
+      uuid += '-'
+    } else if (i === 15) {
+      uuid += 4
+    } else if (i === 20) {
+      uuid += hexList[(Math.random() * 4) | 8]
+    } else {
+      uuid += hexList[(Math.random() * 16) | 0]
+    }
+  }
+  return uuid
+}
+
+/**
+ * 日期格式化
+ */
+tool.dateFormat = (date, fmt = 'yyyy-MM-dd hh:mm:ss', isDefault = '-') => {
+  if (!date) date = Number(new Date())
+  if (date.toString().length == 10) {
+    date = date * 1000
+  }
+  date = new Date(date)
+
+  if (date.valueOf() < 1) {
+    return isDefault
+  }
+  let o = {
+    'M+': date.getMonth() + 1, //月份
+    'd+': date.getDate(), //日
+    'h+': date.getHours(), //小时
+    'm+': date.getMinutes(), //分
+    's+': date.getSeconds(), //秒
+    'q+': Math.floor((date.getMonth() + 3) / 3), //季度
+    S: date.getMilliseconds() //毫秒
+  }
+  if (/(y+)/.test(fmt)) {
+    fmt = fmt.replace(
+      RegExp.$1,
+      (date.getFullYear() + '').substr(4 - RegExp.$1.length)
+    )
+  }
+  for (let k in o) {
+    if (new RegExp('(' + k + ')').test(fmt)) {
+      fmt = fmt.replace(
+        RegExp.$1,
+        RegExp.$1.length == 1 ? o[k] : ('00' + o[k]).substr(('' + o[k]).length)
+      )
+    }
+  }
+  return fmt
+}
+
+/**
+ * 千分符
+ */
+tool.groupSeparator = (num) => {
+  num = num + ''
+  if (!num.includes('.')) {
+    num += '.'
+  }
+  return num
+    .replace(/(\d)(?=(\d{3})+\.)/g, function ($0, $1) {
+      return $1 + ','
+    })
+    .replace(/\.$/, '')
+}
+
+/**
+ * md5加密
+ */
+tool.md5 = (str) => {
+  return CryptoJS.MD5(str).toString()
+}
+
+/**
+ * Base64加密解密
+ */
+tool.base64 = {
+  encode(data) {
+    return CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(data))
+  },
+  decode(cipher) {
+    return CryptoJS.enc.Base64.parse(cipher).toString(CryptoJS.enc.Utf8)
+  }
+}
+
+/**
+ * AES加密解密
+ */
+tool.aes = {
+  encode(data, secretKey) {
+    const result = CryptoJS.AES.encrypt(
+      data,
+      CryptoJS.enc.Utf8.parse(secretKey),
+      {
+        mode: CryptoJS.mode.ECB,
+        padding: CryptoJS.pad.Pkcs7
+      }
+    )
+    return result.toString()
+  },
+  decode(cipher, secretKey) {
+    const result = CryptoJS.AES.decrypt(
+      cipher,
+      CryptoJS.enc.Utf8.parse(secretKey),
+      {
+        mode: CryptoJS.mode.ECB,
+        padding: CryptoJS.pad.Pkcs7
+      }
+    )
+    return CryptoJS.enc.Utf8.stringify(result)
+  }
+}
+
+/**
+ * 打印信息
+ */
+tool.capsule = (title, info, type = 'primary') => {
+  console.log(
+    `%c ${title} %c ${info} %c`,
+    'background:#35495E; padding: 1px; border-radius: 3px 0 0 3px; color: #fff;',
+    `background:${typeColor(
+      type
+    )}; padding: 1px; border-radius: 0 3px 3px 0;  color: #fff;`,
+    'background:transparent'
+  )
+}
+
+/**
+ * 文件大小单位处理
+ */
+tool.formatSize = (size) => {
+  if (typeof size == 'undefined') {
+    return '0'
+  }
+  let units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB']
+  let index = 0
+  for (let i = 0; size >= 1024 && i < 5; i++) {
+    size /= 1024
+    index = i
+  }
+  return Math.round(size, 2) + units[index]
+}
+
+/**
+ * 下载资源
+ */
+tool.download = (res, downName = '') => {
+  const aLink = document.createElement('a')
+  let fileName = downName
+  let blob = res //第三方请求返回blob对象
+
+  //通过后端接口返回
+  if (res.headers && res.data) {
+    blob = new Blob([res.data], {
+      type: res.headers['content-type'].replace(';charset=utf8', '')
+    })
+    if (!downName) {
+      const contentDisposition = decodeURI(res.headers['content-disposition'])
+      const result = contentDisposition.match(/filename=\"(.+)/gi)
+      fileName = result[0].replace(/filename=\"/gi, '')
+      fileName = fileName.replace('"', '')
+    }
+  }
+
+  aLink.href = URL.createObjectURL(blob)
+  // 设置下载文件名称
+  aLink.setAttribute('download', fileName)
+  document.body.appendChild(aLink)
+  aLink.click()
+  document.body.removeChild(aLink)
+  URL.revokeObjectURL(aLink.href)
+}
+
+/**
+ * 对象转url参数
+ * @param {*} data
+ * @param {*} isPrefix
+ */
+tool.httpBuild = (data, isPrefix = false) => {
+  let prefix = isPrefix ? '?' : ''
+  let _result = []
+  for (let key in data) {
+    let value = data[key]
+    // 去掉为空的参数
+    if (['', undefined, null].includes(value)) {
+      continue
+    }
+    if (value.constructor === Array) {
+      value.forEach((_value) => {
+        _result.push(
+          encodeURIComponent(key) + '[]=' + encodeURIComponent(_value)
+        )
+      })
+    } else {
+      _result.push(encodeURIComponent(key) + '=' + encodeURIComponent(value))
+    }
+  }
+
+  return _result.length ? prefix + _result.join('&') : ''
+}
+
+/**
+ * 获取URL请求参数
+ */
+tool.getRequestParams = (url) => {
+  const theRequest = new Object()
+  if (url.indexOf('?') != -1) {
+    const params = url.split('?')[1].split('&')
+    for (let i = 0; i < params.length; i++) {
+      const param = params[i].split('=')
+      theRequest[param[0]] = decodeURIComponent(param[1])
+    }
+  }
+  return theRequest
+}
+
+tool.attachUrl = (path) => {
+  if (!path) return ''
+  // 已经是完整URL
+  if (path.startsWith('http://') || path.startsWith('https://')) {
+    // 如果当前页面是 HTTPS，将 HTTP URL 替换为 HTTPS（避免混合内容错误）
+    if (window.location.protocol === 'https:' && path.startsWith('http://')) {
+      return path.replace('http://', 'https://')
+    }
+    return path
+  }
+  // 确保路径以/开头
+  const normalizedPath = path.startsWith('/') ? path : '/' + path
+  
+  // 静态资源路径（/upload/）直接使用 BASE_URL，不经过 API 代理
+  if (normalizedPath.startsWith('/upload/')) {
+    return import.meta.env.VITE_APP_BASE_URL + normalizedPath
+  }
+  
+  // 其他路径根据代理配置处理
+  const baseUrl = import.meta.env.VITE_APP_OPEN_PROXY === 'true' 
+    ? import.meta.env.VITE_APP_PROXY_PREFIX 
+    : import.meta.env.VITE_APP_BASE_URL
+  return baseUrl + normalizedPath
+}
+
+tool.viewImage = (path) => {
+  return tool.attachUrl(path)
+}
+
+tool.showFile = (path) => {
+  return tool.attachUrl(path)
+}
+
+/**
+ * 获取token
+ */
+tool.getToken = () => {
+  return tool.session.get(import.meta.env.VITE_APP_TOKEN_PREFIX)
+}
+
+/**
+ * 转Unix时间戳
+ */
+tool.toUnixTime = (date) => {
+  return Math.floor(new Date(date).getTime() / 1000)
+}
+
+/**
+ * 通过value获取颜色
+ */
+tool.getColor = (value, data, colors = []) => {
+  if (!data) {
+    return ''
+  }
+  if (colors && colors.length > 0) {
+    const index = data.findIndex((item) => item.value == value)
+    return colors[index] ?? ''
+  } else {
+    const item = data.find((item) => item.value == value)
+    return item?.color ?? ''
+  }
+}
+
+/**
+ * 通过value获取label
+ */
+tool.getLabel = (value, data) => {
+  if (!data) {
+    return ''
+  }
+  const item = data.find((item) => item.value == value)
+  return item?.label ?? ''
+}
+
+export default tool
