@@ -432,9 +432,9 @@ async fn process_kami_user_topup(
     kami: &KamiInfo,
     current_time: i64,
 ) -> Result<(), String> {
-    // 获取卡密用户的当前VIP
+    // 获取卡密用户的当前VIP（u_cdk_kami 的列名是 vip，无 vip_exp）
     let kami_vip = sqlx::query_as::<_, (Option<i64>,)>(
-        "SELECT vip_exp FROM u_cdk_kami WHERE id = ? AND appid = ?",
+        "SELECT vip FROM u_cdk_kami WHERE id = ? AND appid = ?",
     )
     .bind(uid)
     .bind(appid)
@@ -455,7 +455,7 @@ async fn process_kami_user_topup(
             } else {
                 current_time + kami.val
             };
-            sqlx::query("UPDATE u_cdk_kami SET vip_exp = ? WHERE id = ? AND appid = ?")
+            sqlx::query("UPDATE u_cdk_kami SET vip = ? WHERE id = ? AND appid = ?")
                 .bind(new_vip)
                 .bind(uid)
                 .bind(appid)

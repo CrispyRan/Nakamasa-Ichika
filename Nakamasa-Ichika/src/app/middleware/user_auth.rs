@@ -916,7 +916,7 @@ async fn fetch_user_info_from_db(
         let row = sqlx::query(
             r#"
             SELECT 
-                K.id, K.email, K.password, K.vip_exp, K.ban, K.ban_msg,
+                K.id, K.email, K.password, K.vip, K.ban, K.ban_msg,
                 K.sn_list, K.sn_max, K.val, K.type as kami_type, K.cdk as card_no, K.use_id
             FROM u_cdk_kami as K
             WHERE K.id = ? AND K.appid = ?
