@@ -146,11 +146,15 @@ fn get_migrations() -> Vec<Migration> {
         },
         Migration {
             version: "1.0.6",
-            description: "管理员密码升级为 Argon2id（扩宽 u_admin.password），并为新增的 RBAC 权限拦截补充授权基线（auth 为空的存量超管置为 [\"all\"]，避免升级后无法登录后台）",
+            description: "密码升级为 Argon2id：扩宽 admin/user/cdk_kami 三表 password 列（旧 varchar(32) 仅能存 MD5，Argon2id 约 97 字符会截断，改密/注册后无法登录），并为新增的 RBAC 权限拦截补充授权基线（auth 为空的存量超管置为 [\"all\"]，避免升级后无法登录后台）",
             migration_type: MigrationType::Database,
             sql: Some(SqlSource::Statements(&[
                 r#"ALTER TABLE `{admin}`
                     MODIFY COLUMN password VARCHAR(255) NOT NULL COMMENT 'Argon2id 或兼容旧 MD5 哈希'"#,
+                r#"ALTER TABLE `{user}`
+                    MODIFY COLUMN password VARCHAR(255) NOT NULL COMMENT 'Argon2id 或兼容旧 MD5 哈希'"#,
+                r#"ALTER TABLE `{cdk_kami}`
+                    MODIFY COLUMN password VARCHAR(255) DEFAULT NULL COMMENT 'Argon2id/MD5 卡密密码，卡密登录成功后原地升级'"#,
                 r#"UPDATE `{admin}` SET auth = JSON_ARRAY('all') WHERE auth IS NULL"#,
             ])),
         },
