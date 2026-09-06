@@ -930,8 +930,12 @@ pub async fn out_all(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         .join(",");
 
     // 查询卡密数据
+    // 注意：u_cdk_user 没有 use_user 列，使用者需经 use_uid 关联 u_user 取得；
+    // 同时带 appid 条件避免多应用间串号
     let query = format!(
-        "SELECT U.cdk, U.note, U.type, U.val, G.name as Gname, U.use_time, U.add_time, U.use_user
+        "SELECT U.cdk, U.note, U.type, U.val, G.name as Gname, U.use_time, U.add_time,
+         IFNULL((SELECT IFNULL(UR.nickname, IFNULL(UR.phone, UR.acctno))
+                 FROM u_user AS UR WHERE UR.id = U.use_uid AND UR.appid = U.appid), '') as use_user
          FROM u_cdk_user AS U
          LEFT JOIN u_cdk_group AS G ON (U.gid = G.id)
          WHERE U.id IN ({})",
