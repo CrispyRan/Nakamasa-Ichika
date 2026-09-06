@@ -696,7 +696,7 @@ async fn create_all_tables(db_pool: &sqlx::MySqlPool, prefix: &str) -> Result<()
             r#"CREATE TABLE IF NOT EXISTS `{p}_admin` (
             `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
             `user` varchar(18) NOT NULL,
-            `password` varchar(32) NOT NULL,
+            `password` varchar(255) NOT NULL COMMENT 'Argon2id 或兼容旧 MD5 哈希',
             `notes` varchar(64) NOT NULL,
             `avatars` varchar(128) DEFAULT NULL,
             `lockin` tinyint(1) DEFAULT '0',
