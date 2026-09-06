@@ -149,8 +149,15 @@ pub async fn statistics(req: &mut Request, depot: &mut Depot, res: &mut Response
 
     // 验证管理员对该 appid 有访问权限
     if let Some(admin_info) = depot.get::<crate::app::middleware::admin_auth::AdminInfo>("admin_info").ok() {
-        if let Some(admin_appid) = admin_info.appid {
-            if admin_appid != appid_from_header {
+        // appid 为 json 列，兼容单值 [1] 与数组 [1,2] 两种授权形式
+        if let Some(admin_appid) = admin_info.appid.clone() {
+            let allowed = admin_appid.is_number()
+                && admin_appid.as_u64() == Some(appid_from_header)
+                || admin_appid
+                    .as_array()
+                    .map(|list| list.iter().any(|v| v.as_u64() == Some(appid_from_header)))
+                    .unwrap_or(false);
+            if !allowed {
                 res.render(Json(ApiResponse::<()>::error("没有该应用的访问权限", 201)));
                 return;
             }

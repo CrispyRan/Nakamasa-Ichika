@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "Nakamasa-Ichika"
-version = "1.0.4"
+version = "1.0.6"
 dependencies = [
  "aes",
  "anyhow",

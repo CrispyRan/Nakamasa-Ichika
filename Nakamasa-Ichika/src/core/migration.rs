@@ -144,6 +144,16 @@ fn get_migrations() -> Vec<Migration> {
                     ADD COLUMN IF NOT EXISTS face_enable ENUM('on','off') DEFAULT 'off' COMMENT '是否开启人脸识别安全验证 on/off'"#,
             ])),
         },
+        Migration {
+            version: "1.0.6",
+            description: "管理员密码升级为 Argon2id（扩宽 u_admin.password），并为新增的 RBAC 权限拦截补充授权基线（auth 为空的存量超管置为 [\"all\"]，避免升级后无法登录后台）",
+            migration_type: MigrationType::Database,
+            sql: Some(SqlSource::Statements(&[
+                r#"ALTER TABLE `{admin}`
+                    MODIFY COLUMN password VARCHAR(255) NOT NULL COMMENT 'Argon2id 或兼容旧 MD5 哈希'"#,
+                r#"UPDATE `{admin}` SET auth = JSON_ARRAY('all') WHERE auth IS NULL"#,
+            ])),
+        },
         // 添加更多迁移...
     ]
 }
@@ -579,6 +589,8 @@ fn render_sql_template(stmt: &str, ctx: &MigrationContext) -> String {
         .replace("{vcode}", &ctx.table("vcode"))
         .replace("{cdk_kami}", &ctx.table("cdk_kami"))
         .replace("{cdk_user}", &ctx.table("cdk_user"))
+        .replace("{admin}", &ctx.table("admin"))
+        .replace("{cdk_single}", &ctx.table("cdk_single"))
 }
 
 fn normalize_table_prefix(prefix: &str) -> String {

@@ -1,6 +1,6 @@
 [package]
 name = "Nakamasa-Ichika"
-version = "1.0.4"
+version = "1.0.6"
 edition = "2024"
 
 # 抑制第三方库的未来兼容性警告
