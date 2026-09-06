@@ -46,6 +46,10 @@ use crate::core::AppState;
 /// MCP 服务端配置
 #[derive(Clone, Debug)]
 pub struct McpConfig {
+    /// 是否启用 MCP 服务端
+    pub enabled: bool,
+    /// API 密钥（开启后调用方需在请求头以 Bearer 令牌携带）
+    pub api_key: String,
     /// 订单号前缀
     pub order_prefix: String,
     /// 服务端名称（MCP 握手时返回）
@@ -65,6 +69,8 @@ pub struct McpConfig {
 impl Default for McpConfig {
     fn default() -> Self {
         Self {
+            enabled: false,
+            api_key: String::new(),
             order_prefix: "MCP".to_string(),
             server_name: "nakasama-mcp".to_string(),
             server_version: "1.0.0".to_string(),
@@ -132,6 +138,8 @@ fn ensure_session_cleanup() {
 static CONFIG: Lazy<McpConfig> = Lazy::new(|| {
     let global_mcp = crate::config::get().mcp();
     McpConfig {
+        enabled: global_mcp.is_active(),
+        api_key: global_mcp.api_key().to_string(),
         order_prefix: global_mcp.order_prefix().to_string(),
         server_name: global_mcp.server_name().to_string(),
         server_version: global_mcp.server_version().to_string(),
@@ -141,6 +149,51 @@ static CONFIG: Lazy<McpConfig> = Lazy::new(|| {
         cleanup_interval: Duration::from_secs(global_mcp.cleanup_interval_secs()),
     }
 });
+
+/// 常量时间比较，避免通过响应时间推断密钥内容
+#[inline]
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// 校验 MCP 调用方的 API 密钥
+///
+/// 端点开启（mcp.enabled: true）时必须携带 Authorization: Bearer 令牌。
+/// 未开启、密钥未配置或密钥不匹配时一律拒绝，并统一返回 404 隐藏端点存在性。
+fn check_mcp_auth(req: &Request, res: &mut Response) -> bool {
+    if !CONFIG.enabled || CONFIG.api_key.is_empty() {
+        tracing::warn!("MCP 端点请求被拒绝：mcp.enabled 未开启或未配置 mcp.api_key");
+        reject_mcp(res, "Not found");
+        return false;
+    }
+
+    let expected = CONFIG.api_key.as_str();
+    let provided = req
+        .headers()
+        .get("Authorization")
+        .and_then(|v| v.to_str().ok())
+        .and_then(|v| v.strip_prefix("Bearer "))
+        .unwrap_or("");
+
+    if provided.is_empty() || !constant_time_eq(provided.as_bytes(), expected.as_bytes()) {
+        tracing::warn!(
+            "MCP API 密钥校验失败: ip={}",
+            crate::core::middleware::get_client_ip(req)
+        );
+        reject_mcp(res, "Not found");
+        return false;
+    }
+    true
+}
+
+/// 统一的 MCP 拒绝响应（404，隐藏端点存在性）
+fn reject_mcp(res: &mut Response, msg: &str) {
+    res.status_code(StatusCode::NOT_FOUND);
+    res.render(Text::Plain(msg.to_string()));
+}
 
 fn generate_session_id() -> String {
     let ts = SystemTime::now()
@@ -498,7 +551,7 @@ fn handle_create_payment(args: &serde_json::Value, state: &Arc<AppState>, app_id
 }
 
 /// 查询订单
-fn handle_query_order(args: &serde_json::Value, state: &Arc<AppState>, _app_id: u64) -> String {
+fn handle_query_order(args: &serde_json::Value, state: &Arc<AppState>, app_id: u64) -> String {
     let order_no = args.get("order_no").and_then(|v| v.as_str()).unwrap_or("");
     if order_no.is_empty() {
         return make_error(-32602, "Missing required parameter: order_no");
@@ -512,9 +565,10 @@ fn handle_query_order(args: &serde_json::Value, state: &Arc<AppState>, _app_id: 
     let rt = tokio::runtime::Handle::current();
     let result = rt.block_on(async {
         sqlx::query_as::<_, (String, f64, String, String)>(
-            "SELECT order_no, money, status, pay_type FROM u_order WHERE order_no = ?",
+            "SELECT order_no, money, status, pay_type FROM u_order WHERE order_no = ? AND appid = ?",
         )
         .bind(order_no)
+        .bind(app_id)
         .fetch_optional(pool)
         .await
     });
@@ -595,8 +649,13 @@ fn dispatch(body: &str, state: &Arc<AppState>, app_id: u64) -> String {
 ///
 /// app_id 必须传入且为有效的应用ID，绑定到会话供后续工具调用使用。
 #[handler]
-pub async fn sse_handler(_req: &mut Request, depot: &mut Depot, res: &mut Response) {
-    let app_id = _req.query::<u64>("app_id").unwrap_or(0);
+pub async fn sse_handler(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    // 认证守卫：未开启/密钥错误一律 404，隐藏端点存在性
+    if !check_mcp_auth(req, res) {
+        return;
+    }
+
+    let app_id = req.query::<u64>("app_id").unwrap_or(0);
     if app_id == 0 {
         res.status_code(StatusCode::BAD_REQUEST);
         res.render(Text::Plain(make_error(-32000, "Missing or invalid app_id query parameter")));
@@ -723,6 +782,11 @@ pub async fn sse_handler(_req: &mut Request, depot: &mut Depot, res: &mut Respon
 /// 消息端点：`POST /mcp/messages?session_id=xxx`
 #[handler]
 pub async fn messages_handler(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    // 认证守卫：每次调用都校验密钥，避免仅凭 session_id 复用会话
+    if !check_mcp_auth(req, res) {
+        return;
+    }
+
     let session_id = req.query::<String>("session_id").unwrap_or_default();
     if session_id.is_empty() {
         res.status_code(StatusCode::BAD_REQUEST);

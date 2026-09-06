@@ -205,10 +205,6 @@ pub mod middleware;
 /// QuickJS 运行时 - 轻量级跨平台 JavaScript 引擎
 pub mod quickjs_runtime;
 
-/// V8 运行时 - 已弃用，保留模块名以兼容旧代码
-#[deprecated(note = "已弃用，请使用 quickjs_runtime")]
-pub mod v8_runtime;
-
 /// 火焰图性能分析
 ///
 /// 提供运行时 CPU 性能分析，支持生成 SVG 火焰图和 pprof 格式数据。

@@ -543,7 +543,7 @@ fn generate_config_yaml(
     upload_size: 2
     # 是否保留人脸底图（原始人脸图片）。false=仅存512维人脸特征向量（默认，更隐私）；true=同时存底图
     face_store_image: {}
-    cache: false
+    cache: false  # 保留字段：当前版本未启用任何读取点，请勿依赖此开关判断缓存行为
     user_api_rewrite: false
     output_msg: true
     ver: {}
@@ -608,6 +608,13 @@ cors:
         - "OPTIONS"
     allow_credentials: true
     max_age: 86400
+mcp:
+    # MCP 服务端（供 AI 客户端调用下单/查询工具）。默认关闭。
+    # 需要时同时设置 enabled: true 并提供随机 api_key（建议 32 位以上），
+    # 调用方须在请求头以 Authorization: Bearer 令牌携带该 api_key。
+    # api_key 必须独立于 app.code 与 admin.keys，不要复用其他密钥。
+    enabled: false
+    api_key: ""
 log:
     path: ./log
     max_size: 100

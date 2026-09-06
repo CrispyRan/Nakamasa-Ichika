@@ -268,7 +268,7 @@ impl Handler for AdminAuth {
             // 检查是否需要续期（剩余时间小于24小时）
             let exp = claims.exp;
             let now = current_timestamp();
-            if (exp - now) < 86400
+            if exp.saturating_sub(now) < 86400
                 && let Ok(new_token) = jwt_builder
                     .set_iss("admin")
                     .add_claim("id", admin.0)

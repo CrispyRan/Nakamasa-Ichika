@@ -6,7 +6,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::app::utils::response::ApiResponse;
 use crate::app::utils::validator::Validator;
-use crate::core::md5_optimize::md5_concat_2;
 
 #[derive(Debug, Deserialize)]
 struct GetListRequest {
@@ -191,12 +190,15 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     }
 
-    // 获取ADM_PWD配置
-    let app_conf = app_state.config();
-    let adm_pwd_salt = app_conf.app().admin().keys();
-
-    // 创建密码哈希 - 使用优化版本
-    let password_hash = md5_concat_2(&add_req.password, adm_pwd_salt);
+    // 创建密码哈希 - Argon2id（每用户随机盐，替代全局盐 MD5；admin_cache/登录验证均兼容）
+    let password_hash = match crate::core::password::hash_password(&add_req.password) {
+        Ok(h) => h,
+        Err(e) => {
+            tracing::error!("管理员密码哈希失败: {}", e);
+            res.render(Json(ApiResponse::<()>::error("添加失败", 201)));
+            return;
+        }
+    };
 
     // 插入管理员
     let insert_result = sqlx::query("INSERT INTO u_admin (notes, user, password) VALUES (?, ?, ?)")
@@ -301,13 +303,18 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         edit_req.auth.to_string(),
     ];
 
-    // 如果提供了新密码，则更新密码
+    // 如果提供了新密码，则更新密码（Argon2id，替代全局盐 MD5）
     if let Some(password) = edit_req.password
         && !password.is_empty()
     {
-        let app_conf = app_state.config();
-        let adm_pwd_salt = app_conf.app().admin().keys();
-        let password_hash = md5_concat_2(&password, adm_pwd_salt);
+        let password_hash = match crate::core::password::hash_password(&password) {
+            Ok(h) => h,
+            Err(e) => {
+                tracing::error!("管理员密码哈希失败: {}", e);
+                res.render(Json(ApiResponse::<()>::error("编辑失败", 201)));
+                return;
+            }
+        };
         updates.push("password = ?");
         params.push(password_hash);
     }

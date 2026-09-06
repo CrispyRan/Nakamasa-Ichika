@@ -5,6 +5,13 @@ use serde::Deserialize;
 /// 对应 config.yaml 中的 `mcp` 字段，可选的，不配置则使用默认值。
 #[derive(Debug, Deserialize)]
 pub struct McpServerSettings {
+    /// 是否启用 MCP 服务端（默认 false，需在 config.yaml 显式开启）
+    #[serde(default = "default_enabled")]
+    enabled: bool,
+    /// API 密钥。开启 MCP 时必须配置，请求头 Authorization 以 Bearer 令牌携带。
+    /// 为空则拒绝所有请求。
+    #[serde(default)]
+    api_key: String,
     /// 订单号前缀（默认 "MCP"）
     #[serde(default = "default_order_prefix")]
     order_prefix: String,
@@ -29,6 +36,7 @@ pub struct McpServerSettings {
 }
 
 // 默认值函数
+fn default_enabled() -> bool { false }
 fn default_order_prefix() -> String { "MCP".to_string() }
 fn default_server_name() -> String { "nakasama-mcp".to_string() }
 fn default_server_version() -> String { "1.0.0".to_string() }
@@ -40,6 +48,8 @@ fn default_cleanup_interval() -> u64 { 300 }
 impl Default for McpServerSettings {
     fn default() -> Self {
         Self {
+            enabled: default_enabled(),
+            api_key: String::new(),
             order_prefix: default_order_prefix(),
             server_name: default_server_name(),
             server_version: default_server_version(),
@@ -52,6 +62,17 @@ impl Default for McpServerSettings {
 }
 
 impl McpServerSettings {
+    /// 是否为「可服务」状态：已开启且配置了非空 API 密钥
+    ///
+    /// 两者缺一即视为关闭，调用方请求一律拒绝。
+    pub fn is_active(&self) -> bool {
+        self.enabled && !self.api_key.trim().is_empty()
+    }
+
+    pub fn api_key(&self) -> &str {
+        &self.api_key
+    }
+
     pub fn order_prefix(&self) -> &str { &self.order_prefix }
     pub fn server_name(&self) -> &str { &self.server_name }
     pub fn server_version(&self) -> &str { &self.server_version }
