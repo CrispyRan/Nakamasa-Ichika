@@ -279,7 +279,8 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
                         conditions.push_str(" AND CAST(U.phone AS CHAR) LIKE ?");
                     }
                     "cardNo" => {
-                        conditions.push_str(" AND U.cardNo LIKE ?");
+                        // 注意：匹配分支名保持 cardNo 以兼容前端传入值，实际列名为 cdk
+                        conditions.push_str(" AND U.cdk LIKE ?");
                     }
                     _ => {
                         // 默认：只搜索 O.name 和 O.mark，避免全表扫描
@@ -323,7 +324,7 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
 
             // 查询列表
             let list_query = format!(
-                "SELECT O.id, O.fid, O.uid, O.name, O.fen, O.mark, O.time, IFNULL(U.phone,IFNULL(U.email,U.cardNo)) as user FROM u_fen_order AS O LEFT JOIN u_cdk_kami AS U ON (O.uid=U.id) WHERE {} ORDER BY O.id DESC LIMIT ? OFFSET ?",
+                "SELECT O.id, O.fid, O.uid, O.name, O.fen, O.mark, O.time, IFNULL(U.phone,IFNULL(U.email,U.cdk)) as user FROM u_fen_order AS O LEFT JOIN u_cdk_kami AS U ON (O.uid=U.id) WHERE {} ORDER BY O.id DESC LIMIT ? OFFSET ?",
                 conditions
             );
 

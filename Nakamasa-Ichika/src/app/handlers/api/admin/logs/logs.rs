@@ -153,7 +153,7 @@ async fn get_username(
             .ok()
             .flatten(),
         "kami" => sqlx::query_scalar(
-            "SELECT COALESCE(phone, COALESCE(email, cardNo)) FROM u_cdk_kami WHERE id = ?",
+            "SELECT COALESCE(phone, COALESCE(email, cdk)) FROM u_cdk_kami WHERE id = ?",
         )
         .bind(uid)
         .fetch_optional(db)
@@ -163,7 +163,7 @@ async fn get_username(
         "user" | "agent" => {
             if let Some("kami") = app_type {
                 sqlx::query_scalar(
-                    "SELECT COALESCE(phone, COALESCE(email, cardNo)) FROM u_cdk_kami WHERE id = ?",
+                    "SELECT COALESCE(phone, COALESCE(email, cdk)) FROM u_cdk_kami WHERE id = ?",
                 )
                 .bind(uid)
                 .fetch_optional(db)
@@ -190,7 +190,7 @@ async fn get_username(
 async fn get_tousername(toug: &str, touid: i64, db: &sqlx::MySqlPool) -> Option<String> {
     match toug {
         "kami" => sqlx::query_scalar(
-            "SELECT COALESCE(phone, COALESCE(email, cardNo)) FROM u_cdk_kami WHERE id = ?",
+            "SELECT COALESCE(phone, COALESCE(email, cdk)) FROM u_cdk_kami WHERE id = ?",
         )
         .bind(touid)
         .fetch_optional(db)

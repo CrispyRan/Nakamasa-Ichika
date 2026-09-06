@@ -352,7 +352,7 @@ async fn query_kami_cdk(
     appid: u64,
 ) -> Result<Option<KamiInfo>, sqlx::Error> {
     let result = sqlx::query_as::<_, (i64, String, i64, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<String>, String)>(
-        "SELECT id, type, val, password, use_id, use_time, ban, ban_msg, cardNo FROM u_cdk_kami WHERE cardNo = ? AND appid = ?"
+        "SELECT id, type, val, password, use_id, use_time, ban, ban_msg, cdk FROM u_cdk_kami WHERE cdk = ? AND appid = ?"
     )
     .bind(kami).bind(appid)
     .fetch_optional(pool).await?;

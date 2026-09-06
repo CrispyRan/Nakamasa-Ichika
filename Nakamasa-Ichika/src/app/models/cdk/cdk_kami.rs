@@ -50,7 +50,7 @@ pub struct Kami {
     #[sqlx(rename = "type")]
     pub card_type: CardType,
 
-    #[sqlx(rename = "cardNo")]
+    #[sqlx(rename = "cdk")]
     pub card_number: String,
 
     #[sqlx(rename = "val")]

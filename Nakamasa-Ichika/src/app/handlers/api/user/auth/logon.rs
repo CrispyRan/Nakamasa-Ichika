@@ -826,9 +826,9 @@ let logon_ban_expire = get_logon_ban_expire(db, appid).await;
 
     // 查询卡密
     let kami_result = sqlx::query_as::<_, (u64, String, Option<i64>, Option<String>, String, Option<String>, Option<i64>, Option<i64>, Option<String>, Option<i64>, Option<i64>, Option<i64>, Option<i64>, Option<serde_json::Value>)>(
-        "SELECT id, cardNo, phone, email, type, password, vip, fen, ban_msg, ban, use_id, use_time, val, sn_list 
+        "SELECT id, cdk, phone, email, type, password, vip, fen, ban_msg, ban, use_id, use_time, val, sn_list 
          FROM u_cdk_kami 
-         WHERE (phone = ? OR email = ? OR cardNo = ?) AND appid = ?"
+         WHERE (phone = ? OR email = ? OR cdk = ?) AND appid = ?"
     )
     .bind(&kami_req.account).bind(&kami_req.account).bind(&kami_req.account)
     .bind(appid)

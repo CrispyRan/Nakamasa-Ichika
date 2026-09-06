@@ -55,7 +55,7 @@ pub struct CdkUser {
     pub gid: i64,
     #[sqlx(rename = "type")]
     pub cdk_type: CdkType,
-    #[sqlx(rename = "cardNo")]
+    #[sqlx(rename = "cdk")]
     pub card_number: String,
     pub val: i64,
     pub note: Option<String>,
