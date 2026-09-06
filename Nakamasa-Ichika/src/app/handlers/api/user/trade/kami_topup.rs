@@ -311,24 +311,27 @@ pub async fn kami_topup(req: &mut Request, depot: &mut Depot, res: &mut Response
 }
 
 /// 查询用户版卡密
+///
+/// 注意：u_cdk_user 表无 password 列（卡密码存于 cdk 列，见 cdk_user.rs:451 的 INSERT），
+/// 故密码恒为 None；WHERE 按实际存在的 cdk 列匹配。
 async fn query_user_cdk(
     pool: &sqlx::MySqlPool,
     kami: &str,
     appid: u64,
     current_time: i64,
 ) -> Result<Option<KamiInfo>, sqlx::Error> {
-    let result = sqlx::query_as::<_, (i64, String, i64, Option<String>, Option<i64>, Option<String>, String)>(
-        "SELECT id, type, val, password, use_uid, state, cardNo FROM u_cdk_user WHERE cardNo = ? AND appid = ?"
+    let result = sqlx::query_as::<_, (i64, String, i64, Option<i64>, Option<String>, String)>(
+        "SELECT id, type, val, use_uid, state, cdk FROM u_cdk_user WHERE cdk = ? AND appid = ?"
     )
     .bind(kami).bind(appid)
     .fetch_optional(pool).await?;
 
     Ok(result.map(
-        |(id, kami_type, val, password, use_uid, state, card_no)| KamiInfo {
+        |(id, kami_type, val, use_uid, state, card_no)| KamiInfo {
             id,
             kami_type,
             val,
-            password,
+            password: None,
             use_id: use_uid,
             use_time: None,
             ban: if state == Some("n".to_string()) {
