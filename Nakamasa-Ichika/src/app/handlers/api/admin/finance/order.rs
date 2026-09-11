@@ -188,8 +188,8 @@ pub async fn statistics(req: &mut Request, depot: &mut Depot, res: &mut Response
     // money['wx_total'] = total - ali_total
     let money_query = r#"
         SELECT 
-            COALESCE(SUM(money), 0) as total,
-            COALESCE(SUM(CASE WHEN payment = 'ali' THEN money ELSE 0 END), 0) as ali_total
+            CAST(COALESCE(SUM(money), 0) AS DOUBLE) as total,
+            CAST(COALESCE(SUM(CASE WHEN payment = 'ali' THEN money ELSE 0 END), 0) AS DOUBLE) as ali_total
         FROM u_order 
         WHERE add_time >= ? AND add_time < ? AND state = 2 AND appid = ?
     "#;

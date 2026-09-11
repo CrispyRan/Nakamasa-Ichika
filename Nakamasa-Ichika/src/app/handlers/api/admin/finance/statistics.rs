@@ -305,9 +305,9 @@ async fn get_order_statistics(
         r#"
         SELECT 
             COUNT(*) as count,
-            COALESCE(SUM(CASE WHEN state = 2 THEN money ELSE 0 END), 0) as money_sum,
-            COALESCE(SUM(CASE WHEN state = 2 AND add_time >= ? AND add_time < ? THEN money ELSE 0 END), 0) as today_money,
-            COALESCE(SUM(CASE WHEN state = 2 AND add_time >= ? AND add_time < ? THEN money ELSE 0 END), 0) as yesterday_money,
+            CAST(COALESCE(SUM(CASE WHEN state = 2 THEN money ELSE 0 END), 0) AS DOUBLE) as money_sum,
+            CAST(COALESCE(SUM(CASE WHEN state = 2 AND add_time >= ? AND add_time < ? THEN money ELSE 0 END), 0) AS DOUBLE) as today_money,
+            CAST(COALESCE(SUM(CASE WHEN state = 2 AND add_time >= ? AND add_time < ? THEN money ELSE 0 END), 0) AS DOUBLE) as yesterday_money,
             CAST(COALESCE(SUM(CASE WHEN add_time >= ? AND add_time < ? THEN 1 ELSE 0 END), 0) AS SIGNED) as today_count,
             CAST(COALESCE(SUM(CASE WHEN add_time >= ? AND add_time < ? THEN 1 ELSE 0 END), 0) AS SIGNED) as yesterday_count,
             CAST(COALESCE(SUM(CASE WHEN state = 2 AND add_time >= ? AND add_time < ? THEN 1 ELSE 0 END), 0) AS SIGNED) as today_deal_count,
