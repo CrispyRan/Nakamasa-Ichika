@@ -150,13 +150,19 @@ static CONFIG: Lazy<McpConfig> = Lazy::new(|| {
     }
 });
 
-/// 常量时间比较，避免通过响应时间推断密钥内容
+/// 常量时间比较，避免通过响应时间推断密钥内容。
+///
+/// 长度差异也必须折叠进累加器：若长度不等就提前 `return false`，攻击者可据响应
+/// 时间差推出密钥精确长度。这里按最长边迭代，缺失字节按 0 计入比较。
 #[inline]
 fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
-    if a.len() != b.len() {
-        return false;
-    }
-    a.iter().zip(b.iter()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+    let max_len = a.len().max(b.len());
+    a.iter()
+        .chain(std::iter::repeat(&0u8))
+        .zip(b.iter().chain(std::iter::repeat(&0u8)))
+        .take(max_len)
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
 }
 
 /// 校验 MCP 调用方的 API 密钥
@@ -487,9 +493,11 @@ fn handle_create_payment(args: &serde_json::Value, state: &Arc<AppState>, app_id
     );
 
     // 插入订单
+    // 注意：u_order 的支付通道列是 payment（enum 'ali'/'wx'），状态列是 state（int），
+    // 不存在 pay_type / status。channel 取值来自 get_available_channels，正好是 ali/wx。
     let insert = rt.block_on(async {
         sqlx::query(
-            "INSERT INTO u_order (uid, gid, order_no, name, money, type, val, pay_type, status, add_time, appid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'wait', ?, ?)",
+            "INSERT INTO u_order (uid, gid, order_no, name, money, type, val, payment, state, add_time, appid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         )
         .bind(uid)
         .bind(gid)
@@ -499,6 +507,7 @@ fn handle_create_payment(args: &serde_json::Value, state: &Arc<AppState>, app_id
         .bind(&goods_type)
         .bind(val)
         .bind(channel)
+        .bind(0i16)
         .bind(current_time)
         .bind(app_id)
         .execute(pool)

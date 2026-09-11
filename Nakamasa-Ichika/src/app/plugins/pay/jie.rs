@@ -212,6 +212,14 @@ impl PayPlugin for JiePayPlugin {
     }
 
     fn verify_notify(&self, data: serde_json::Value) -> Result<NotifyVerifyResult, String> {
+        // 密钥未配置（None 或空串）必须直接拒绝。否则 sign() 会用空字符串当密钥算 MD5，
+        // 攻击者可自算签名伪造回调刷单（与 ali/wx/qq 未配置即拒绝保持一致）。
+        match self.access_key.as_deref() {
+            None => return Err("皆网支付密钥未配置".to_string()),
+            Some("") => return Err("皆网支付密钥未配置".to_string()),
+            Some(_) => {}
+        }
+
         let received_sign = match data.get("sign").and_then(|s| s.as_str()) {
             Some(s) => s.to_string(),
             None => return Err("缺少sign参数".to_string()),

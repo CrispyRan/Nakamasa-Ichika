@@ -294,7 +294,7 @@ fn mysql_fmt_to_pg(fmt: &str) -> String {
 /// 一通过扫描找到匹配的右括号，并返回顶级逗号分割的参数列表。
 /// 返回 `(content_start, parts, paren_end)`。
 /// 参数列表中的每个 part 包含其原始空白（caller 自行 trim）。
-fn find_paren_and_split_args<'a>(s: &[u8], sql: &'a str, open_pos: usize) -> Option<(Vec<&'a str>, usize)> {
+pub(crate) fn find_paren_and_split_args<'a>(s: &[u8], sql: &'a str, open_pos: usize) -> Option<(Vec<&'a str>, usize)> {
     let mut depth = 1u32;
     let mut i = open_pos + 1;
     let mut parts: Vec<&'a str> = Vec::new();
@@ -406,6 +406,71 @@ fn find_matching_paren(s: &[u8], open_pos: usize) -> Option<(usize, usize)> {
     None
 }
 
+/// 在括号内容中从**右侧**定位顶层 `AS`，返回 `AS` 关键字的起始偏移。
+///
+/// `CAST(expr AS type)` 的目标类型紧跟闭合括号，故取最右侧的顶层 `AS`，
+/// 避免误切到表达式内部的 `AS`。跳过字符串字面量、反引号标识符与嵌套括号。
+/// 仅识别带空格分隔的 ` AS `；项目内 `CAST` 用法均如此（`CAST(x AS SIGNED)`）。
+fn find_top_level_as(s: &[u8]) -> Option<usize> {
+    let mut depth = 0u32;
+    let mut i = 0usize;
+    let mut last = None;
+    while i < s.len() {
+        match s[i] {
+            b'(' => depth += 1,
+            b')' => {
+                depth = depth.saturating_sub(1);
+            }
+            b'\'' => {
+                i += 1;
+                while i < s.len() && s[i] != b'\'' {
+                    if s[i] == b'\\' && i + 1 < s.len() {
+                        i += 1;
+                    }
+                    i += 1;
+                }
+            }
+            b'`' => {
+                i += 1;
+                while i < s.len() && s[i] != b'`' {
+                    i += 1;
+                }
+            }
+            b'A' if depth == 0 && i + 3 < s.len()
+                && s[i + 1] == b'S'
+                && s[i + 2] == b' '
+                && s[i - 1] == b' ' =>
+            {
+                last = Some(i);
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    last
+}
+
+/// 翻译 MySQL 专有 CAST 目标类型。
+///
+/// 仅 SIGNED/UNSIGNED 是 MySQL 专有、在 PostgreSQL/SQLite 下会报错的类型，需翻译：
+/// - `SIGNED` / `SIGNED INTEGER` → `INTEGER`
+/// - `UNSIGNED` / `UNSIGNED INTEGER` → `BIGINT`（MySQL 无符号整数上界约
+///   18446744073709551615，超出 PostgreSQL `INTEGER` 的 2147483647）
+///
+/// 其余类型（`CHAR(3)`、`DECIMAL(10,2)`、`BINARY` 等）在 PostgreSQL/SQLite 下
+/// 本身可解析或语义可接受，**原样保留**（返回 `Cow::Borrowed`，零拷贝）。
+fn translate_cast_type<'t>(type_name: &'t str) -> Cow<'t, str> {
+    let t = type_name.trim();
+    let u = t.to_ascii_uppercase();
+    if u.contains("UNSIGNED") {
+        Cow::Borrowed("BIGINT")
+    } else if u == "SIGNED" || u == "SIGNED INTEGER" {
+        Cow::Borrowed("INTEGER")
+    } else {
+        Cow::Borrowed(t)
+    }
+}
+
 /// 检查字符串在 `pos` 位置是否以 `pat` 开头。
 #[inline(always)]
 fn matches_at(s: &[u8], pos: usize, pat: &[u8]) -> bool {
@@ -481,6 +546,11 @@ fn needs_translation(sql: &str, dialect: DbType) -> bool {
             }
             b'C' if is_word_boundary(s, i) && matches_at(s, i, b"CONCAT(") => return true,
             b'C' if is_word_boundary(s, i) => {
+                // CAST(expr AS SIGNED/UNSIGNED) — MySQL 专有类型需翻译。
+                // 必须放在这个宽泛分支内部：否则 CAST 的 C 会被本分支吞掉
+                // （块体只检查 CONCAT_WS/CURDATE/CURTIME 后静默返回），
+                // 后面独立的 CAST 分支永远不可达。
+                if matches_at(s, i, b"CAST(") { return true; }
                 if matches_at(s, i, b"CONCAT_WS(") { return true; }
                 if matches_at(s, i, b"CURDATE(") { return true; }
                 if matches_at(s, i, b"CURTIME(") { return true; }
@@ -569,6 +639,31 @@ fn adapt_mysql_sql_inner<'a>(sql: &'a str, dialect: DbType, out: &mut String) {
                     out.push_str(" ELSE ");
                     adapt_mysql_sql_inner(f_val, dialect, out);
                     out.push_str(" END");
+                    i = paren_end + 1;
+                    continue;
+                }
+            }
+        }
+
+        // ── CAST(expr AS SIGNED/UNSIGNED) → 通用整型 ──
+        // MySQL 专有类型 SIGNED/UNSIGNED 在 PostgreSQL/SQLite 下不可用，
+        // 财务统计接口（finance/order.rs、finance/statistics.rs）运行时依赖该写法。
+        if s[i] == b'C' && is_word_boundary(s, i) && matches_at(s, i, b"CAST(") {
+            // `(` 在 i+4（"CAST(" 长 5）。注意不是 i+5：那会指到 CAST 表达式内
+            // 第一个字符（如 COUNT 的 C），导致匹配到内层括号。
+            if let Some((content_start, paren_end)) = find_matching_paren(s, i + 4) {
+                let content = &sql[content_start..paren_end];
+                // 在 content 顶层定位 ` AS `，切分为 (表达式, 目标类型)
+                if let Some(rel) = find_top_level_as(content.as_bytes()) {
+                    let expr = content[..rel].trim();
+                    let type_name = content[rel..].trim().trim_start_matches("AS").trim();
+                    let translated_type = translate_cast_type(type_name);
+                    out.push_str("CAST(");
+                    // 递归翻译表达式内部（反引号、IFNULL 等仍需处理）
+                    adapt_mysql_sql_inner(expr, dialect, out);
+                    out.push_str(" AS ");
+                    out.push_str(&translated_type);
+                    out.push(')');
                     i = paren_end + 1;
                     continue;
                 }
@@ -1313,6 +1408,104 @@ mod tests {
         assert_eq!(pg, r#"SELECT to_char(to_timestamp(reg_time), 'YYYY-MM-DD') as day FROM u_user"#);
         let sqlite = adapt_mysql_sql(sql, DbType::Sqlite);
         assert_eq!(sqlite, "SELECT strftime('%Y-%m-%d', reg_time, 'unixepoch') as day FROM u_user");
+    }
+
+    // ── CAST(...) AS SIGNED / UNSIGNED ──
+
+    #[test]
+    fn test_adapt_cast_signed() {
+        // finance/order.rs:220 的真实写法
+        let sql = "SELECT CAST(COUNT(*) AS SIGNED) as total FROM u_order";
+        let pg = adapt_mysql_sql(sql, DbType::Postgres);
+        assert_eq!(pg, "SELECT CAST(COUNT(*) AS INTEGER) as total FROM u_order");
+        let sqlite = adapt_mysql_sql(sql, DbType::Sqlite);
+        assert_eq!(sqlite, "SELECT CAST(COUNT(*) AS INTEGER) as total FROM u_order");
+    }
+
+    #[test]
+    fn test_adapt_cast_unsigned() {
+        // UNSIGNED 上界超出 PG INTEGER，需转 BIGINT
+        let sql = "SELECT CAST(amount AS UNSIGNED) FROM t";
+        let pg = adapt_mysql_sql(sql, DbType::Postgres);
+        assert_eq!(pg, "SELECT CAST(amount AS BIGINT) FROM t");
+        let sqlite = adapt_mysql_sql(sql, DbType::Sqlite);
+        assert_eq!(sqlite, "SELECT CAST(amount AS BIGINT) FROM t");
+    }
+
+    #[test]
+    fn test_adapt_cast_signed_nested_expr() {
+        // 表达式内部含 CASE（其拼写以 AS 结尾，但不是关键字）与 COUNT(*) 别名，
+        // 均不应被误切；只切 CAST 最外层的 ` AS SIGNED`
+        let sql = "SELECT CAST(SUM(CASE WHEN state = 2 THEN 1 ELSE 0 END) AS SIGNED) as total FROM u_order";
+        let pg = adapt_mysql_sql(sql, DbType::Postgres);
+        assert_eq!(
+            pg,
+            "SELECT CAST(SUM(CASE WHEN state = 2 THEN 1 ELSE 0 END) AS INTEGER) as total FROM u_order"
+        );
+        let sqlite = adapt_mysql_sql(sql, DbType::Sqlite);
+        assert_eq!(
+            sqlite,
+            "SELECT CAST(SUM(CASE WHEN state = 2 THEN 1 ELSE 0 END) AS INTEGER) as total FROM u_order"
+        );
+    }
+
+    #[test]
+    fn test_adapt_cast_signed_with_backtick() {
+        // 表达式内部反引号与 IFNULL 仍需翻译
+        let sql = "SELECT CAST(IFNULL(`count`, 0) AS SIGNED) FROM `t`";
+        let pg = adapt_mysql_sql(sql, DbType::Postgres);
+        assert_eq!(pg, r#"SELECT CAST(COALESCE("count", 0) AS INTEGER) FROM "t""#);
+    }
+
+    #[test]
+    fn test_adapt_cast_char_preserved() {
+        // 非 SIGNED/UNSIGNED 的目标类型原样保留。
+        // 断言含 CHAR(3) 子串以区分「CHAR 被保留」与「整条 SQL 未被翻译」——
+        // 后者输出无 CHAR 时本断言会失败，避免测试空转
+        let sql = "SELECT CAST(name AS CHAR(3)) FROM t";
+        for dialect in [DbType::Postgres, DbType::Sqlite] {
+            let out = adapt_mysql_sql(sql, dialect);
+            assert!(out.contains("CHAR(3)"), "CHAR 类型应原样保留: {out}");
+            assert!(out.contains("CAST(name"), "CAST 表达式应保留: {out}");
+        }
+    }
+
+    #[test]
+    fn test_adapt_cast_signed_then_char_preserved() {
+        // 同一语句混合两种目标类型：SIGNED 必须翻译，CHAR 必须保留。
+        // 这是区分「翻译生效」与「SQL 原样返回」的关键断言
+        let sql = "SELECT CAST(a AS SIGNED), CAST(b AS CHAR(3)) FROM t";
+        for dialect in [DbType::Postgres, DbType::Sqlite] {
+            let out = adapt_mysql_sql(sql, dialect);
+            assert!(out.contains("AS INTEGER),"), "SIGNED 应翻译为 INTEGER: {out}");
+            assert!(out.contains("AS CHAR(3)"), "CHAR 应原样保留: {out}");
+            assert!(!out.contains("SIGNED"), "SIGNED 不应残留: {out}");
+        }
+    }
+
+    #[test]
+    fn test_adapt_cast_mysql_unchanged() {
+        // MySQL 路径零分配、原样返回（Cow::Borrowed）
+        let sql = "SELECT CAST(COUNT(*) AS SIGNED) FROM t";
+        let cow = adapt_mysql_sql(sql, DbType::MySql);
+        assert!(matches!(cow, std::borrow::Cow::Borrowed(_)), "MySQL 路径应零分配");
+        assert_eq!(cow, sql);
+    }
+
+    #[test]
+    fn test_find_top_level_as_and_translate_type() {
+        // 表达式内部（嵌套括号内）的 AS 不应命中，取最右侧顶层 AS
+        let s = b"COALESCE(SUM(CASE WHEN state = 2 THEN 1 ELSE 0 END), 0) AS SIGNED";
+        let pos = find_top_level_as(s).unwrap();
+        assert_eq!(&s[pos..pos + 2], b"AS");
+
+        assert_eq!(translate_cast_type("SIGNED"), "INTEGER");
+        assert_eq!(translate_cast_type("signed"), "INTEGER");
+        assert_eq!(translate_cast_type("SIGNED INTEGER"), "INTEGER");
+        assert_eq!(translate_cast_type("UNSIGNED"), "BIGINT");
+        assert_eq!(translate_cast_type("unsigned integer"), "BIGINT");
+        assert_eq!(translate_cast_type("CHAR(3)"), "CHAR(3)");
+        assert_eq!(translate_cast_type("DECIMAL(10,2)"), "DECIMAL(10,2)");
     }
 
     // ── CONCAT ──

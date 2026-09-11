@@ -1,6 +1,7 @@
 //! Nakamasa-utils 工具库
 
 pub mod crypto;
+pub mod db_ddl;
 pub mod db_mysql;
 pub mod face;
 pub mod geoip;

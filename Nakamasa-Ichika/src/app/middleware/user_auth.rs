@@ -917,7 +917,7 @@ async fn fetch_user_info_from_db(
             r#"
             SELECT 
                 K.id, K.email, K.password, K.vip, K.ban, K.ban_msg,
-                K.sn_list, K.sn_max, K.val, K.type as kami_type, K.cdk as card_no, K.use_id
+                K.sn_list, K.sn_max, K.val, K.type as kami_type, K.cdk as card_no, K.use_id, K.extend
             FROM u_cdk_kami as K
             WHERE K.id = ? AND K.appid = ?
             "#,
@@ -954,7 +954,7 @@ async fn fetch_user_info_from_db(
                 token_state: String::new(),
                 inviter_id: None,
                 avatars: None,
-                extend: None,
+                extend: r.try_get(12)?,
                 card_no: r.try_get(10)?,
                 kami_type: r.try_get(9)?,
                 val: r.try_get(8)?,
