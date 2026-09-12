@@ -806,13 +806,15 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     }
 
     // 插入应用
-    let insert_result =
-        sqlx::query("INSERT INTO u_app (app_name, app_key, app_type) VALUES (?, ?, ?)")
-            .bind(add_req.app_name.clone())
-            .bind(&data[1].1)
-            .bind(add_req.app_type.clone())
-            .execute(db)
-            .await;
+    let insert_result = sqlx::query(
+        "INSERT INTO u_app (app_name, app_key, app_type, app_logo) VALUES (?, ?, ?, ?)",
+    )
+    .bind(add_req.app_name.clone())
+    .bind(&data[1].1)
+    .bind(add_req.app_type.clone())
+    .bind(add_req.app_logo.clone().unwrap_or_default())
+    .execute(db)
+    .await;
 
     match insert_result {
         Ok(result) => {
@@ -1011,6 +1013,33 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         return;
     }
 
+    // 查询实际存在的表：agent 系列表在部分部署中不存在（代理功能未启用），
+    // 直接 DELETE 会因"表不存在"使事务失败，导致整个应用删除失败。
+    // 必须在 db.begin() 之前查询——事务会借用 db，期间无法再查 information_schema。
+    // 查询失败则回退为删除全部预期表（保持原有行为）。
+    let expected_tables: Vec<String> = vec![
+        "u_user", "u_agent", "u_agent_cash", "u_agent_group", "u_app_extend",
+        "u_app_function", "u_app_mi", "u_app_notice", "u_app_ver", "u_cdk_group",
+        "u_cdk_kami", "u_cdk_user", "u_fen_event", "u_fen_order", "u_goods",
+        "u_logs", "u_message", "u_order", "u_app",
+    ]
+    .into_iter()
+    .map(|s| s.to_string())
+    .collect();
+
+    let existing_set: std::collections::HashSet<String> = match sqlx::query_scalar(
+        "SELECT table_name FROM information_schema.tables WHERE table_schema = DATABASE()",
+    )
+    .fetch_all(db)
+    .await
+    {
+        Ok(names) => names.into_iter().collect(),
+        Err(e) => {
+            tracing::error!("查询数据库表列表失败: {}", e);
+            expected_tables.into_iter().collect()
+        }
+    };
+
     // 开始事务
     let mut tx = match db.begin().await {
         Ok(t) => t,
@@ -1045,12 +1074,27 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     let mut success = true;
     for table in tables {
-        let result = sqlx::query(&format!("DELETE FROM {} WHERE appid = ?", table))
-            .bind(del_req.id)
-            .execute(&mut *tx)
-            .await;
+        // 跳过不存在的表（如代理功能未启用时的 u_agent 系列），
+        // 避免"表不存在"错误使整个事务失败
+        if !existing_set.contains(table) {
+            continue;
+        }
+        // u_app 的主键是 id（无 appid 列），其余表用 appid 外键关联应用
+        let (where_col, bind_val) = if table == "u_app" {
+            ("id", del_req.id)
+        } else {
+            ("appid", del_req.id)
+        };
+        let result = sqlx::query(&format!(
+            "DELETE FROM {} WHERE {} = ?",
+            table, where_col
+        ))
+        .bind(bind_val)
+        .execute(&mut *tx)
+        .await;
 
         if result.is_err() {
+            tracing::error!("删除应用失败: 表 {} 执行失败", table);
             success = false;
             break;
         }

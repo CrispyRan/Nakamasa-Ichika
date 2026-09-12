@@ -1,3 +1,5 @@
+cargo-features = ["codegen-backend"]
+
 [workspace]
 members = ["Nakamasa-Ichika", "Nakamasa-proc", "Nakamasa-utils", "Nakamasa-Ai"]
 default-members = ["Nakamasa-Ichika"]
@@ -116,6 +118,10 @@ opt-level = 3
 # 开发环境配置（保持编译速度）
 # ===========================================
 [profile.dev]
+# 与 .cargo/config.toml 保持一致使用 LLVM 后端：
+# Cranelift(nightly 实验性 codegen) 下 sqlx-macros 过程宏的 .so 被 sqlx
+# dlopen 加载时找不到 aws-lc-sys 动态符号，导致构建失败。
+codegen-backend = "llvm"
 opt-level = 0
 debug = true
 

@@ -1,3 +1,12 @@
+[unstable]
+codegen-backend = true
+
+[profile.dev]
+# 使用 LLVM 后端：Cranelift(nightly 实验性 codegen) 下 sqlx-macros 过程宏的
+# .so 被 sqlx 主 crate dlopen 加载时会找不到 aws-lc-sys 的动态符号
+# (aws_lc_0_43_0_EVP_AEAD_CTX_open_gather) 导致构建失败；LLVM 后端正常。
+codegen-backend = "llvm"
+
 # 针对 Windows 64位目标 - 交叉编译
 [target.x86_64-pc-windows-gnu]
 linker = "x86_64-w64-mingw32-gcc"
