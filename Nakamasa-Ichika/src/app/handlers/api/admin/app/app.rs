@@ -70,6 +70,12 @@ const APP_FIELD_WHITELIST: &[&str] = &[
     "pay_wx_state",
     "pay_wx_type",
     "pay_wx_config",
+    "pay_qqpay_state",
+    "pay_qqpay_type",
+    "pay_qqpay_config",
+    "pay_paypal_state",
+    "pay_paypal_type",
+    "pay_paypal_config",
     "ai_state",
     "ai_provider",
     "ai_api_base",
@@ -833,7 +839,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
             }
         };
 
-    // 获取appid
+    // 获取appid（用于 WHERE 子句，前端 app.js edit 把 id 放在 appid header）
     let appid = match req.headers().get("appid") {
         Some(h) => match h.to_str() {
             Ok(s) => match s.parse::<u64>() {
@@ -869,47 +875,45 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 
     if let serde_json::Value::Object(map) = post_data {
         for (key, value) in map {
-            if key != "id" && key != "appid" {
-                // 处理字段映射并强制白名单：前端字段名不能直接进入 SQL 标识符位置
-                let Some(db_key) = normalize_app_field(key.as_str()) else {
-                    res.render(Json(ApiResponse::<()>::error(
-                        format!("非法字段: {}", key),
-                        201,
-                    )));
-                    return;
-                };
+            // appid（请求头字段）和 app_key（创建时生成，不可修改）不进入 SET
+            if key == "appid" || key == "app_key" {
+                continue;
+            }
+            // 处理字段映射并强制白名单：前端字段名不能直接进入 SQL 标识符位置
+            let Some(db_key) = normalize_app_field(key.as_str()) else {
+                res.render(Json(ApiResponse::<()>::error(
+                    format!("非法字段: {}", key),
+                    201,
+                )));
+                return;
+            };
 
-                if db_key == "id" || db_key == "app_key" {
-                    res.render(Json(ApiResponse::<()>::error(
-                        format!("字段不允许修改: {}", key),
-                        201,
-                    )));
-                    return;
-                }
+            // null 值跳过：必须在校验前判断，否则推入占位符 ? 但不推入参数，
+            // 导致占位符数量与参数不匹配（MySQL 1210: Incorrect arguments to stmt_execute）
+            if value.is_null() {
+                continue;
+            }
 
-                updates.push(format!("{} = ?", db_key));
+            updates.push(format!("{} = ?", db_key));
 
-                // 处理不同类型的值
-                if value.is_string() {
-                    params.push(value.as_str().unwrap().to_string());
-                } else if value.is_null() {
-                    continue;
-                } else if value.is_boolean() {
-                    // 布尔值转换为整数 1 或 0
-                    params.push(if value.as_bool().unwrap() {
-                        "1".to_string()
-                    } else {
-                        "0".to_string()
-                    });
-                } else if value.is_number() {
-                    params.push(value.to_string());
+            // 处理不同类型的值
+            if value.is_string() {
+                params.push(value.as_str().unwrap().to_string());
+            } else if value.is_boolean() {
+                // 布尔值转换为整数 1 或 0
+                params.push(if value.as_bool().unwrap() {
+                    "1".to_string()
                 } else {
-                    // 其他类型（如数组、对象）转为 JSON 字符串
-                    if let Ok(json_str) = serde_json::to_string(&value) {
-                        params.push(json_str);
-                    } else {
-                        params.push(value.to_string());
-                    }
+                    "0".to_string()
+                });
+            } else if value.is_number() {
+                params.push(value.to_string());
+            } else {
+                // 其他类型（如数组、对象）转为 JSON 字符串
+                if let Ok(json_str) = serde_json::to_string(&value) {
+                    params.push(json_str);
+                } else {
+                    params.push(value.to_string());
                 }
             }
         }
@@ -926,6 +930,7 @@ pub async fn edit(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     for param in params {
         sql_query = sql_query.bind(param);
     }
+    // WHERE id = ? 绑定 appid（请求头，即前端 app.js edit 解构出的 id）
     sql_query = sql_query.bind(appid);
 
     let result = sql_query.execute(db).await;
