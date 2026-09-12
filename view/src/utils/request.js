@@ -206,8 +206,15 @@ function createRequest(service, externalService) {
     if (shouldSetContentType) {
       configDefault.headers['Content-Type'] = contentType
     } else if (!config.headers?.hasOwnProperty('Content-Type')) {
-      // 如果没有显式设置，使用默认值
-      configDefault.headers['Content-Type'] = 'application/json;charset=UTF-8'
+      // data 是 FormData 时（图片/文件上传），不注入 JSON：让浏览器自动设置
+      // multipart/form-data 并带上 boundary，强行注入 application/json 会覆盖
+      // boundary，导致后端解析 multipart 失败、文件丢失（"Mime was not FormData"）
+      const isFormData =
+        typeof FormData !== 'undefined' && config.data instanceof FormData
+      if (!isFormData) {
+        // 如果没有显式设置，使用默认值
+        configDefault.headers['Content-Type'] = 'application/json;charset=UTF-8'
+      }
     }
 
     delete config.headers
