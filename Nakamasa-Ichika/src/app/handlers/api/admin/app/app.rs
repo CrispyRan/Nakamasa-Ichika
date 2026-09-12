@@ -244,6 +244,17 @@ pub async fn get_info(req: &mut Request, depot: &mut Depot, res: &mut Response) 
                         );
                     } else if let Ok(val) = row.try_get::<i64, _>(col_name) {
                         data.insert(col_name.to_string(), serde_json::Value::Number(val.into()));
+                    } else if let Ok(val) = row.try_get::<Option<u64>, _>(col_name) {
+                        // unsigned 列（如 u_app.id / *_time 等 bigint unsigned）：
+                        // i64 探测会因 sqlx 严格类型拒绝而失败，若不加此分支会掉到下面的
+                        // bool 探测，把 1 解码成 true，导致前端 appInfo.id=true、appid 头解析失败
+                        data.insert(
+                            col_name.to_string(),
+                            val.map(|v| serde_json::Value::Number(v.into()))
+                                .unwrap_or(serde_json::Value::Null),
+                        );
+                    } else if let Ok(val) = row.try_get::<u64, _>(col_name) {
+                        data.insert(col_name.to_string(), serde_json::Value::Number(val.into()));
                     } else if let Ok(val) = row.try_get::<Option<bool>, _>(col_name) {
                         data.insert(
                             col_name.to_string(),
