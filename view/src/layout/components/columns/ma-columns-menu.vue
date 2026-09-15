@@ -110,10 +110,10 @@ const loadMenu = (bigMenu, index) => {
   background: rgb(var(--primary-6));
   color: #fff;
 }
-.arco-menu-vertical .arco-menu-inner {
+:deep(.arco-menu-vertical .arco-menu-inner) {
   padding: 4px;
 }
-.arco-menu-vertical .arco-menu-item {
+:deep(.arco-menu-vertical .arco-menu-item) {
   padding: 0px 9px;
   line-height: 36px;
 }

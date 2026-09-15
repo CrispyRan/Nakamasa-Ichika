@@ -1,4 +1,4 @@
-/* Tailwind v4：三条 @tailwind 指令合并为单个 @import，
-   自定义配置通过 @config 指令加载（v4 保留对 v3 配置文件的兼容读取） */
-@import "tailwindcss";
-@config "../../tailwind.config.cjs";
+/* ./src/index.css */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

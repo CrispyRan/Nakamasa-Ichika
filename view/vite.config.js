@@ -1,14 +1,9 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
-import { fileURLToPath } from 'url'
+import { resolve } from 'path'
 import vueJsx from '@vitejs/plugin-vue-jsx'
 import { visualizer } from 'rollup-plugin-visualizer'
 import basicSsl from '@vitejs/plugin-basic-ssl'
-
-// Vite 8 的 native config loader 不支持 __dirname（即将成为默认加载方式），
-// 改用 import.meta.dirname。本文件是 ESM（package.json "type": "module"），
-// 项目根目录 = 此文件的上一级。
-const rootDir = fileURLToPath(new URL('.', import.meta.url))
 
 export default ({ mode }) => {
   const env = loadEnv(mode, process.cwd())
@@ -28,8 +23,8 @@ export default ({ mode }) => {
     ],
     resolve: {
       alias: {
-        '@': rootDir + 'src',
-        '@cps': rootDir + 'src/components',
+        '@': resolve(__dirname, 'src'),
+        '@cps': resolve(__dirname, 'src/components'),
         'vue-i18n': 'vue-i18n/dist/vue-i18n.cjs.js'
       }
     },
