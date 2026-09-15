@@ -83,6 +83,9 @@
       <a-form-item v-if="form.layout !== 'banner'" :label="$t('sys.menuWidth')" :help="$t('sys.menuWidthHelp')">
         <a-input-number v-model="form.menuWidth" mode="button" @change="handleMenuWidth" />
       </a-form-item>
+      <a-form-item :label="$t('sys.fixedActionCol')" :help="$t('sys.fixedActionColHelp')">
+        <a-switch v-model="form.fixedActionCol" @change="handleFixedActionCol" />
+      </a-form-item>
     </a-form>
   </a-drawer>
 
@@ -121,6 +124,7 @@ const form = reactive({
   ws: appStore.ws,
   roundOpen: appStore.roundOpen,
   videoSound: appStore.videoSound,
+  fixedActionCol: appStore.fixedActionCol ?? true,
 })
 
 const defaultColorList = reactive([
@@ -175,6 +179,7 @@ const handleSettingTag = (val) => appStore.toggleTag(val)
 const handleMenuCollapse = (val) => appStore.toggleMenu(val)
 const handleMenuWidth = (val) => appStore.changeMenuWidth(val)
 const handleVideoSound = (val) => appStore.toggleVideoSound(val)
+const handleFixedActionCol = (val) => appStore.toggleFixedActionCol(val)
 
 watch(
   () => appStore.menuCollapse,
@@ -198,6 +203,7 @@ const save = async (done) => {
     ws: appStore.ws,
     roundOpen: appStore.roundOpen,
     videoSound: appStore.videoSound,
+    fixedActionCol: appStore.fixedActionCol,
   }
 
   user.updateInfo({ id: userStore.user.id, backend_setting: data }).then((res) => {

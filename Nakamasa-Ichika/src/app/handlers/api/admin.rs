@@ -235,6 +235,11 @@ pub fn admin_routes() -> Router {
                 .post(user::user::edit),
         )
         .push(
+            Router::with_path("/user/editAvatar")
+                .hoop(AdminAuth::new())
+                .post(user::user::edit_avatar),
+        )
+        .push(
             Router::with_path("/user/del")
                 .hoop(AdminAuth::new())
                 .post(user::user::del),
@@ -858,6 +863,11 @@ pub fn admin_routes() -> Router {
             Router::with_path("/admList/del")
                 .hoop(AdminAuth::new())
                 .post(adm::adm_list::del),
+        )
+        .push(
+            Router::with_path("/admList/editState")
+                .hoop(AdminAuth::new())
+                .post(adm::adm_list::edit_state),
         )
         .push(
             Router::with_path("/admin/setAvatars")

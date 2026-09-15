@@ -503,7 +503,7 @@ tool.showFile = (path) => {
  * 获取token
  */
 tool.getToken = () => {
-  return tool.session.get(import.meta.env.VITE_APP_TOKEN_PREFIX)
+  return tool.local.get(import.meta.env.VITE_APP_TOKEN_PREFIX)
 }
 
 /**

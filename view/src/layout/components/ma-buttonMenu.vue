@@ -5,6 +5,7 @@
       clickToClose
       position="top"
       v-model:popupVisible="popupVisible"
+      :popupStyle="{ maxHeight: 'calc(100vh - 70px)', overflowY: 'auto' }"
     >
       <div :class="`button-trigger ${popupVisible ? 'button-trigger-active' : ''}`">
         <icon-close v-if="popupVisible" />

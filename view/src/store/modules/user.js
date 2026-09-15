@@ -7,6 +7,7 @@ import { isUndefined } from 'lodash'
 import { homePage } from '@/router/homePageRoutes'
 import { useAppStore, useTagStore, useDictStore } from '@/store'
 import { menuSeed } from '@/mock/index.js'
+import { AUTH_GROUPS, MENU_AUTH, hasAuth, isFullAuth } from '@/utils/authGroups'
 
 // 构建菜单树
 function buildMenuTree(items, parentId = '0') {
@@ -43,6 +44,40 @@ function filterMenuByAppType(menus, appType, dictData) {
   })
 }
 
+// ============================================================================
+// 管理员权限（RBAC）
+//
+// AUTH_GROUPS / MENU_AUTH / hasAuth / isFullAuth 定义在
+// @/utils/authGroups.js。之所以单独成文件而非写在这里：
+// admin/index.vue 需要 AUTH_GROUPS，而 user.js 自己又 import @/store（barrel），
+// barrel 再 import user.js —— 构成循环依赖。循环下 AUTH_GROUPS 首次求值为
+// undefined，admin/index.vue 的 `AUTH_GROUPS.filter(...)` 直接抛错，
+// 表现为"选自定义权限后没有可勾选项、页面崩坏"。
+// 抽到不依赖任何内部模块的常量文件即可打破该环。
+//
+// 后端 auth_allows 的真实语义：
+//   - auth 为 null（老账号/新建默认）→ 全部权限
+//   - 含 "all" 或 "*" → 全部权限
+//   - 空数组 [] → 无权限（会被锁死），所以前端提交时绝不能产生空数组
+// ============================================================================
+
+export { AUTH_GROUPS, MENU_AUTH, hasAuth, isFullAuth }
+
+// 根据权限码过滤菜单：无 auth 映射的菜单（仪表盘等）始终保留
+function filterMenuByAuth(menus, codes) {
+  if (codes == null || !Array.isArray(codes) || codes.length === 0) {
+    return menus
+  }
+  const hasAll = codes.includes('*') || codes.includes('all')
+  if (hasAll) return menus
+  return menus.filter(item => {
+    const group = MENU_AUTH[item.name]
+    // 未配置权限组的菜单默认放行（仪表盘、个人中心、插件市场）
+    if (!group) return true
+    return hasAuth(codes, group)
+  })
+}
+
 const useUserStore = defineStore('user', {
   state: () => ({
     codes: undefined,
@@ -66,15 +101,16 @@ const useUserStore = defineStore('user', {
 
   actions: {
     setToken(token) {
-      tool.session.set(import.meta.env.VITE_APP_TOKEN_PREFIX, token)
+      // 存 localStorage：关标签页/重启浏览器后仍保持登录
+      tool.local.set(import.meta.env.VITE_APP_TOKEN_PREFIX, token)
     },
 
     getToken() {
-      return tool.session.get(import.meta.env.VITE_APP_TOKEN_PREFIX)
+      return tool.local.get(import.meta.env.VITE_APP_TOKEN_PREFIX)
     },
 
     clearToken() {
-      tool.session.remove(import.meta.env.VITE_APP_TOKEN_PREFIX)
+      tool.local.remove(import.meta.env.VITE_APP_TOKEN_PREFIX)
     },
 
     setInfo(data) {
@@ -127,6 +163,8 @@ const useUserStore = defineStore('user', {
       // 重新构建和过滤菜单
       let menus = buildMenuTree(menuSeed)
       menus = filterMenuByAppType(menus, appType, dictStore.data || {})
+      // 保留权限过滤，避免切换应用后把无权菜单放回来
+      menus = filterMenuByAuth(menus, this.codes)
       
       // 更新菜单数据
       this.routers = menus
@@ -178,50 +216,73 @@ const useUserStore = defineStore('user', {
     requestUserInfo() {
       return new Promise((resolve, reject) => {
         loginApi.getInfo().then(async (response) => {
-          if (!response || !response.data) {
-            this.clearToken()
-            await router.push({ name: 'login' })
-            reject(false)
-          } else {
-            // 获取当前应用信息
-            this.getCurrentApp()
-            
-            // 适配后端响应格式：data.info 包含用户信息
-            const userData = response.data.info || response.data
-            
-            // 先初始化字典数据
-            const dictStore = useDictStore()
-            await dictStore.initData()
-            
-            // 构建菜单树
-            let menus = buildMenuTree(menuSeed)
-            
-            // 根据应用类型和字典配置过滤菜单
-            const appType = this.currentApp?.app_type || 'user'
-            menus = filterMenuByAppType(menus, appType, dictStore.data || {})
-            
-            this.setInfo({
-              user: {
-                id: userData.id,
-                username: userData.user,
-                nickname: userData.notes || userData.user,
-                avatar: userData.avatars || '',
-                email: '',
-                phone: '',
-                dept_id: 1,
-                dashboard: 'statistics',
-                backend_setting: '{"mode":"light"}'
-              },
-              roles: [{ id: 1, name: '超级管理员', code: 'super_admin' }],
-              codes: ['*'],
-              routers: menus
-            })
-            homePage.children = webRouter[0].children
-            this.setMenu(this.routers, appType)
-            this.routers = removeButtonMenu(this.routers)
-            this.routers.unshift(homePage)
-            await this.setApp()
-            resolve(response.data)
+          try {
+            if (!response || !response.data) {
+              // 后端明确返回无数据，或拦截器把失败 resolve 成 {code:500}（无 data 字段）。
+              // 注意：request.js 的错误拦截器 return Promise.resolve({code:500,...})，
+              // 业务错误从不 reject，而是 resolve 成无 data 的对象 —— 所以这里
+              // 同时覆盖了「后端无数据」和「接口 500」两种失败
+              this.clearToken()
+              await router.push({ name: 'login' })
+              reject(false)
+            } else {
+              // 获取当前应用信息
+              this.getCurrentApp()
+
+              // 适配后端响应格式：data.info 包含用户信息
+              const userData = response.data.info || response.data
+
+              // 先初始化字典数据
+              const dictStore = useDictStore()
+              await dictStore.initData()
+
+              // 构建菜单树
+              let menus = buildMenuTree(menuSeed)
+
+              // 根据应用类型和字典配置过滤菜单
+              const appType = this.currentApp?.app_type || 'user'
+              menus = filterMenuByAppType(menus, appType, dictStore.data || {})
+
+              // 权限码：来自后端 verify 返回的 auth。
+              // auth 为 null/undefined 代表老账号或新建管理员（后端默认全量权限），
+              // 此时给 ['*'] 保持原有全量行为；非空数组则逐组生效。
+              const auth = userData.auth
+              let codes = ['*']
+              if (Array.isArray(auth)) {
+                codes = auth.some(a => a === '*' || a === 'all') ? ['*'] : [...auth]
+              }
+              // 权限过滤菜单（全量权限时 filterMenuByAuth 原样返回）
+              menus = filterMenuByAuth(menus, codes)
+
+              this.setInfo({
+                user: {
+                  id: userData.id,
+                  username: userData.user,
+                  nickname: userData.notes || userData.user,
+                  avatar: userData.avatars || '',
+                  email: '',
+                  phone: '',
+                  dept_id: 1,
+                  dashboard: 'statistics',
+                  backend_setting: '{"mode":"light"}'
+                },
+                roles: [{ id: 1, name: isFullAuth(auth) ? '超级管理员' : '管理员', code: isFullAuth(auth) ? 'super_admin' : 'admin' }],
+                codes: codes,
+                routers: menus
+              })
+              homePage.children = webRouter[0].children
+              this.setMenu(this.routers, appType)
+              this.routers = removeButtonMenu(this.routers)
+              this.routers.unshift(homePage)
+              await this.setApp()
+              resolve(response.data)
+            }
+          } catch (e) {
+            // 兜底处理链路上任意一步抛错（dictStore.initData / setApp / getCurrentApp 等）。
+            // 原实现 async .then 里的 throw 会被吞掉、本 Promise 永不 settle，
+            // 上游路由守卫的 await 就永久挂起、页面卡死 —— 这是真实存在的挂起路径
+            console.error('[UserStore] requestUserInfo 处理失败:', e)
+            reject(e)
           }
         })
       })

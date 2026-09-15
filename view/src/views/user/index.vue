@@ -109,7 +109,7 @@
         <template #account="{ record }">
           <div class="account-cell">
             <a-badge :count="record.online ? 1 : 0" dot :dot-style="{ background: '#52c41a' }">
-              <a-avatar :size="40" class="user-avatar">
+              <a-avatar :size="40" class="user-avatar" @click="pickAvatar(record)">
                 <img v-if="record.avatars" :src="record.avatars" />
                 <IconUser v-else />
               </a-avatar>
@@ -159,6 +159,15 @@
           </a-space>
         </template>
       </a-table>
+
+      <!-- 行内头像上传：隐藏 input，点击头像后通过 pickAvatar 触发 -->
+      <input
+        ref="avatarInput"
+        type="file"
+        accept="image/*"
+        class="hidden"
+        @change="handleAvatarChange"
+      />
 
         <!-- 分页 -->
         <div class="pagination-bar">
@@ -271,10 +280,19 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import dayjs from 'dayjs'
+import file2md5 from 'file2md5'
 import userApi from '@/api/system/userMgmt'
+import commonApi from '@/api/common'
+import { useAppStore } from '@/store'
 
 const router = useRouter()
+const appStore = useAppStore()
 const now = dayjs().unix()
+
+// 行内头像上传：记录当前正在改头像的用户，避免并发上传时拿错行
+const avatarInput = ref(null)
+const avatarTarget = ref(null)
+const avatarUploading = ref(false)
 
 const keywordPlaceholderMap = {
   id: '输入用户ID',
@@ -320,7 +338,8 @@ const awardModalVisible = ref(false)
 const awardLoading = ref(false)
 const awardForm = reactive({ type: 'vip', object: 'all', val: 1, vipType: 'd' })
 
-const columns = [
+// 操作列是否固定由页面设置里的「操作列固定」开关控制；老版本没有该字段时默认固定
+const columns = computed(() => [
   { title: 'ID', slotName: 'id', width: 90, align: 'center' },
   { title: '账号信息', slotName: 'account', minWidth: 200 },
   { title: '会员', slotName: 'vip', width: 100, align: 'center' },
@@ -328,8 +347,15 @@ const columns = [
   { title: '最后登录', slotName: 'last_login', width: 150 },
   { title: '注册信息', slotName: 'reg_time', width: 150 },
   { title: '状态', slotName: 'ban', width: 80, align: 'center' },
-  { title: '操作', slotName: 'actions', width: 100, align: 'center', fixed: 'right' }
-]
+  {
+    title: '操作',
+    slotName: 'actions',
+    width: 100,
+    align: 'center',
+    // 关闭固定后返回 undefined，Arco 会把它当作普通列随表格横向滚动
+    fixed: (appStore.fixedActionCol ?? true) ? 'right' : undefined
+  }
+])
 
 const formatTime = (timestamp) => {
   if (!timestamp) return '-'
@@ -393,6 +419,61 @@ const handleSearch = () => {
 }
 const handlePageChange = (page) => { pagination.current = page; loadData() }
 const handlePageSizeChange = (size) => { pagination.pageSize = size; pagination.current = 1; loadData() }
+
+// 点击行内头像：记录目标用户并触发文件选择
+const pickAvatar = (record) => {
+  if (avatarUploading.value) return
+  avatarTarget.value = record
+  avatarInput.value?.click()
+}
+
+// 选择文件后：先上传拿 URL，再调 editAvatar 写库
+const handleAvatarChange = async (e) => {
+  const file = e.target.files?.[0]
+  // 清空 value，允许连续选同一文件
+  e.target.value = ''
+  if (!file) return
+
+  if (!/^image\//.test(file.type)) {
+    Message.warning('请选择图片文件')
+    return
+  }
+  if (file.size > 4 * 1024 * 1024) {
+    Message.warning('头像不能超过 4MB')
+    return
+  }
+
+  const target = avatarTarget.value
+  avatarUploading.value = true
+  try {
+    const hash = await file2md5(file)
+    const dataForm = new FormData()
+    dataForm.append('image', file)
+    dataForm.append('isChunk', false)
+    dataForm.append('hash', hash)
+    const uploadRes = await commonApi.uploadImage(dataForm)
+    const url = uploadRes.data?.url
+    if (!url) {
+      Message.error('头像上传失败')
+      return
+    }
+
+    const res = await userApi.editAvatar(target.id, url)
+    if (res.code !== 200) {
+      Message.error(res.msg || '头像更新失败')
+      return
+    }
+    // 就地更新当前行，无需整表刷新
+    target.avatars = url
+    Message.success('头像已更新')
+  } catch (err) {
+    console.error('头像上传失败', err)
+    Message.error('头像上传失败：' + err)
+  } finally {
+    avatarUploading.value = false
+    avatarTarget.value = null
+  }
+}
 
 const handleAdd = () => {
   addForm.acctno = ''
@@ -601,14 +682,29 @@ body[arco-theme='dark'] .main-content {
   display: flex;
   flex-direction: row;
   gap: 12px;
-  justify-content: flex-end;
   align-items: center;
-  flex-wrap: wrap;
+  /* 内容从左开始、向右溢出可滚动（首项始终可见）；表单本身靠 margin-left:auto
+     右对齐，避免 justify-content:flex-end 把溢出内容顶到左侧导致首控件不可见 */
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+  width: max-content;
+  max-width: 100%;
+  margin-left: auto;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
+/* 控件不被压缩，保证单行排布；宽度不够时横向滚动而非折成竖排 */
 .search-form :deep(.arco-form-item) {
+  flex-shrink: 0;
   margin-bottom: 0;
   margin-right: 0;
+}
+
+.search-form::-webkit-scrollbar {
+  display: none;
 }
 
 .search-form :deep(.arco-form-item-wrapper-col) {
@@ -757,6 +853,13 @@ body[arco-theme='dark'] .main-content {
   background: var(--color-fill-2);
   color: var(--color-text-3);
   flex-shrink: 0;
+  cursor: pointer;
+  transition: box-shadow 0.2s;
+}
+
+/* 悬停提示头像可点击修改 */
+.user-avatar:hover {
+  box-shadow: 0 0 0 2px rgba(var(--primary-6), 0.4);
 }
 
 .account-info {

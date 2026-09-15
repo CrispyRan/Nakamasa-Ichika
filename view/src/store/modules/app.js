@@ -16,7 +16,8 @@ let defaultSetting = {
   waterContent: 'saiadmin',
   ws: false,
   registerWangEditorButtonFlag: false,
-  videoSound: false
+  videoSound: false,
+  fixedActionCol: true
 }
 
 import { defineStore } from 'pinia'
@@ -159,6 +160,12 @@ const useAppStore = defineStore('app', {
     toggleVideoSound(status) {
       this.videoSound = status
       defaultSetting.videoSound = this.videoSound
+      tool.local.set('setting', defaultSetting)
+    },
+
+    toggleFixedActionCol(status) {
+      this.fixedActionCol = status
+      defaultSetting.fixedActionCol = this.fixedActionCol
       tool.local.set('setting', defaultSetting)
     }
   }

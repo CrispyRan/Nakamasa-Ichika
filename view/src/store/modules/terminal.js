@@ -20,7 +20,7 @@ const buildTerminalUrl = (commandKey, uuid, extend) => {
 
 const getToken = () => {
   const env = import.meta.env
-  return tool.session.get(env.VITE_APP_TOKEN_PREFIX)
+  return tool.local.get(env.VITE_APP_TOKEN_PREFIX)
 }
 
 const useTerminalStore = defineStore('terminal', {

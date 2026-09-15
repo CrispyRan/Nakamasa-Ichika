@@ -283,15 +283,12 @@ pub async fn get_list(req: &mut Request, depot: &mut Depot, res: &mut Response) 
                 let id: u64 = row.try_get("id").unwrap_or(0);
 
                 // 处理avatars字段
-                let avatars_raw: Option<String> = row.try_get("avatars").ok();
-                let avatars = if let Some(ref av) = avatars_raw {
-                    if !av.is_empty() {
-                        Some(format!("{}{}", app_url, av))
-                    } else {
-                        None
-                    }
-                } else {
-                    None
+                // 存库的是相对路径（/upload/image/...），原样返回，不要拼成绝对 URL。
+                // 拼绝对 URL 会用 config 里的 app.host（常是 http://），页面走 HTTPS 时
+                // 浏览器按混合内容拦截该图片，表现为「上传成功但刷新后头像消失」。
+                let avatars: Option<String> = match row.try_get::<Option<String>, _>("avatars").ok().flatten() {
+                    Some(ref s) if s.is_empty() => None,
+                    other => other,
                 };
 
                 // 处理extend字段
@@ -1830,6 +1827,90 @@ pub async fn modify_password(req: &mut Request, depot: &mut Depot, res: &mut Res
         Err(e) => {
             tracing::error!("密码修改失败: {}", e);
             res.render(Json(ApiResponse::<()>::error("密码修改失败", 201)));
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct EditAvatarRequest {
+    id: u64,
+    #[serde(default)]
+    avatars: Option<String>,
+}
+
+/// 管理员更新指定用户的头像（列表行内快捷编辑）。
+/// 独立于 user/edit：edit 对 fen/sn_max 是无条件赋值（unwrap_or(0)），
+/// 复用 edit 改头像会把用户的积分和机器码上限清零。
+#[handler]
+pub async fn edit_avatar(req: &mut Request, depot: &mut Depot, res: &mut Response) {
+    let app_state = match depot.get_typed::<Arc<AppState>>() {
+        Ok(s) => s,
+        Err(_) => {
+            res.render(Json(ApiResponse::<()>::error("服务器错误", 201)));
+            return;
+        }
+    };
+    let db = match app_state.get_db() {
+        Some(pool) => pool,
+        None => {
+            res.render(Json(ApiResponse::<()>::error("服务器错误", -1)));
+            return;
+        }
+    };
+
+    let req_body = match req.parse_json::<EditAvatarRequest>().await {
+        Ok(data) => data,
+        Err(_) => {
+            res.render(Json(ApiResponse::<()>::error("参数解析失败", 201)));
+            return;
+        }
+    };
+
+    if req_body.id == 0 {
+        res.render(Json(ApiResponse::<()>::error("用户ID不能为空", 201)));
+        return;
+    }
+
+    // 头像 URL 走白名单长度校验，空字符串等价于清除头像
+    let avatars = req_body.avatars.unwrap_or_default();
+    if avatars.len() > 1024 {
+        res.render(Json(ApiResponse::<()>::error("头像地址过长", 201)));
+        return;
+    }
+
+    // 与 user/edit 一致，限定当前 appid 作用域，避免跨应用改到同名用户
+    let appid = match req.headers().get("appid") {
+        Some(h) => match h.to_str().ok().and_then(|s| s.parse::<u64>().ok()) {
+            Some(num) => num,
+            None => {
+                res.render(Json(ApiResponse::<()>::error("APPID格式错误", 201)));
+                return;
+            }
+        },
+        None => {
+            res.render(Json(ApiResponse::<()>::error("APPID不能为空", 201)));
+            return;
+        }
+    };
+
+    let result = sqlx::query("UPDATE u_user SET avatars = ? WHERE id = ? AND appid = ?")
+        .bind(&avatars)
+        .bind(req_body.id)
+        .bind(appid)
+        .execute(db)
+        .await;
+
+    match result {
+        Ok(r) => {
+            if r.rows_affected() > 0 {
+                res.render(Json(ApiResponse::success_msg("头像更新成功")));
+            } else {
+                res.render(Json(ApiResponse::<()>::error("用户不存在", 201)));
+            }
+        }
+        Err(e) => {
+            tracing::error!("更新用户头像失败: {}", e);
+            res.render(Json(ApiResponse::<()>::error("更新失败", 201)));
         }
     }
 }

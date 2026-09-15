@@ -40,6 +40,25 @@ app.config.globalProperties.$common = common
 app.config.globalProperties.$title = import.meta.env.VITE_APP_TITLE
 app.config.globalProperties.$url = import.meta.env.VITE_APP_BASE
 
+// 临时诊断：把 Vue 渲染期抛的错桥接到 window 事件。
+// 渲染期抛错会被 Vue 的 errorCaptured 机制拦住，不会冒到 window.unhandledrejection，
+// 所以"点击无反应"这类渲染中断只能从这里抓到。index.html 里的诊断横幅监听 'vue:error'。
+// 定位完成后连同 index.html 里的诊断脚本一起删除。
+app.config.errorHandler = function (err, instance, info) {
+  try {
+    var comp = instance && instance.$options && instance.$options.name
+    window.dispatchEvent(new CustomEvent('vue:error', {
+      detail: {
+        message: (err && err.message) ? err.message : String(err),
+        stack: (err && err.stack) ? String(err.stack) : String(err),
+        info: info,
+        component: comp
+      }
+    }))
+  } catch (e) {}
+}
+
+
 app.mount('#app')
 
 tool.capsule('SaiAdmin', `v${packageJson.version} release`)

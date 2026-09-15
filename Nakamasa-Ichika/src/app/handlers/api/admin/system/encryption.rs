@@ -661,7 +661,10 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
 #[derive(Debug, Deserialize)]
 struct EditSignRequest {
     id: u64,
-    state: String,
+    // 字段名必须叫 sign：前端 /admin/encryption/editSign 发的是 { id, sign }，
+    // 数据库列也是 u_app_mi.sign。此前误写成 state 会导致 serde 反序列化失败，
+    // 表现为关闭/开启「数据签名」时固定报「参数解析失败」。
+    sign: String,
 }
 
 #[handler]
@@ -690,7 +693,7 @@ pub async fn edit_sign(req: &mut Request, depot: &mut Depot, res: &mut Response)
     };
 
     let result = sqlx::query("UPDATE u_app_mi SET sign = ? WHERE id = ?")
-        .bind(&sign_req.state)
+        .bind(&sign_req.sign)
         .bind(sign_req.id)
         .execute(db)
         .await;

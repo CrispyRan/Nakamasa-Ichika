@@ -369,7 +369,7 @@ impl AdminCacheService {
         self.fetch_admin(|db| {
             Box::pin(async move {
                 sqlx::query_as::<_, AdminRow>(
-                    "SELECT id, user, password, notes, state, avatars, auth, lockin, appid FROM u_admin WHERE id = ?"
+                    "SELECT id, user, password, notes, state, avatars, CAST(auth AS CHAR) AS auth, lockin, CAST(appid AS CHAR) AS appid FROM u_admin WHERE id = ?"
                 )
                 .bind(id)
                 .fetch_optional(&db)
@@ -387,7 +387,7 @@ impl AdminCacheService {
         self.fetch_admin(|db| {
             Box::pin(async move {
                 sqlx::query_as::<_, AdminRow>(
-                    "SELECT id, user, password, notes, state, avatars, auth, lockin, appid FROM u_admin WHERE user = ?"
+                    "SELECT id, user, password, notes, state, avatars, CAST(auth AS CHAR) AS auth, lockin, CAST(appid AS CHAR) AS appid FROM u_admin WHERE user = ?"
                 )
                 .bind(&username)
                 .fetch_optional(&db)
@@ -410,7 +410,7 @@ impl AdminCacheService {
             .fetch_admin(|db| {
                 Box::pin(async move {
                     sqlx::query_as::<_, AdminRow>(
-                        "SELECT id, user, password, notes, state, avatars, auth, lockin, appid \
+                        "SELECT id, user, password, notes, state, avatars, CAST(auth AS CHAR) AS auth, lockin, appid \
                          FROM u_admin WHERE user = ? AND state = 'y'"
                     )
                     .bind(&username)
@@ -439,7 +439,7 @@ impl AdminCacheService {
             .fetch_admin(|db| {
                 Box::pin(async move {
                     sqlx::query_as::<_, AdminRow>(
-                        "SELECT id, user, password, notes, state, avatars, auth, lockin, appid \
+                        "SELECT id, user, password, notes, state, avatars, CAST(auth AS CHAR) AS auth, lockin, appid \
                          FROM u_admin WHERE id = ? AND state = 'y'"
                     )
                     .bind(id)

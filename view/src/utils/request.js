@@ -86,7 +86,9 @@ function createService() {
       if (code === 401) {
         throttle(() => {
           Message.error({ content: errorMsg || '登录状态已过期，请重新登录', icon: () => h(IconFaceFrownFill) })
-          tool.local.clear()
+          // 只清 token：token 现存在 localStorage，若用 tool.local.clear() 会连
+          // setting、currentApp 等用户设置一起删掉
+          tool.local.remove(import.meta.env.VITE_APP_TOKEN_PREFIX)
           router.push({ name: 'login' })
         })()
       } else {
@@ -104,7 +106,8 @@ function createService() {
         if (response.status === 401) {
           throttle(() => {
             Message.error({ content: errorMessage || '登录状态已过期', icon: () => h(IconFaceFrownFill) })
-            tool.local.clear()
+            // 只清 token，避免 tool.local.clear() 误删 setting/currentApp 等用户设置
+            tool.local.remove(import.meta.env.VITE_APP_TOKEN_PREFIX)
             router.push({ name: 'login' })
           })()
         } else {
@@ -156,7 +159,7 @@ function formatToken(token) {
 function createRequest(service, externalService) {
   return async function(config) {
     const env = import.meta.env
-    const token = tool.session.get(env.VITE_APP_TOKEN_PREFIX)
+    const token = tool.local.get(env.VITE_APP_TOKEN_PREFIX)
     const setting = tool.local.get('setting')
     
     // 获取 appid：支持多种存储格式

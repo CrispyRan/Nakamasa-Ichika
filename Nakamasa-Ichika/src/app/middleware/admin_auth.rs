@@ -209,9 +209,9 @@ impl Handler for AdminAuth {
         }
 
         // 查询管理员信息
-        // auth/appid 为 json 列，以 Option<String> 读出后解析为 JSON（兼容单值与数组）
+        // auth/appid 为 longtext 列；MariaDB 会按 BLOB 返回，必须 CAST 成 CHAR 才能解码为 String
         let admin_result = sqlx::query_as::<_, (u64, String, String, Option<String>, String, Option<String>, Option<String>, bool, Option<String>)>(
-            "SELECT id, user, password, notes, state, avatars, auth, lockin, appid FROM u_admin WHERE id = ? AND state = ?"
+            "SELECT id, user, password, notes, state, avatars, CAST(auth AS CHAR) AS auth, lockin, CAST(appid AS CHAR) AS appid FROM u_admin WHERE id = ? AND state = ?"
         )
         .bind(id)
         .bind("y")

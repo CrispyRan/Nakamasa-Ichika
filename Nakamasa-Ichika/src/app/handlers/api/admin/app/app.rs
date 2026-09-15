@@ -1006,7 +1006,7 @@ pub async fn del(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let mut validator = Validator::new();
     validator
         .required_u64("id", &Some(del_req.id), "删除ID")
-        .int_u64("id", del_req.id, 1, 11);
+        .int_u64("id", del_req.id, 1, 1_000_000_000_000_000);
 
     if let Err(msg) = validator.validate() {
         res.render(Json(ApiResponse::<()>::error(msg, 201)));

@@ -9,12 +9,6 @@ use crate::core::middleware::get_client_ip;
 use crate::core::operation_log;
 use crate::core::zero_copy::StringBuilder;
 
-#[derive(Debug, Serialize, Deserialize)]
-struct CDKGroupItem {
-    id: u64,
-    name: String,
-}
-
 #[handler]
 pub async fn get_all_list(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     let app_state = match depot.get_typed::<Arc<AppState>>() {
@@ -55,14 +49,16 @@ pub async fn get_all_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
     // 查通用缓存
     let cache_key = format!("cdk_group:{}", appid);
     if let Some(cached) = app_state.generic_cache.get(&cache_key) {
-        if let Ok(list) = serde_json::from_value::<Vec<CDKGroupItem>>(cached) {
+        if let Ok(list) = serde_json::from_value::<Vec<CDKGroupListItem>>(cached) {
             res.render(Json(ApiResponse::success("成功", Some(list))));
             return;
         }
     }
 
-    let result = sqlx::query_as::<_, (u64, String)>(
-        "SELECT id, name FROM u_cdk_group WHERE appid = ? ORDER BY id DESC",
+    // 与 get_list 查询列保持一致：卡片下拉里要展示「台数/积分数 · 价格」，
+    // 之前只查 id、name，前端拿不到 val/price/type，选项会显示成 "undefined台 · ¥"。
+    let result = sqlx::query_as::<_, (u64, String, String, i64, f64, i64)>(
+        "SELECT id, name, type, val, price, appid FROM u_cdk_group WHERE appid = ? ORDER BY id DESC",
     )
     .bind(appid)
     .fetch_all(db)
@@ -70,11 +66,15 @@ pub async fn get_all_list(req: &mut Request, depot: &mut Depot, res: &mut Respon
 
     match result {
         Ok(rows) => {
-            let list: Vec<CDKGroupItem> = rows
+            let list: Vec<CDKGroupListItem> = rows
                 .into_iter()
-                .map(|row| CDKGroupItem {
+                .map(|row| CDKGroupListItem {
                     id: row.0,
                     name: row.1,
+                    cdk_type: row.2,
+                    val: row.3,
+                    price: row.4,
+                    appid: row.5,
                 })
                 .collect();
             // 写入缓存
@@ -106,7 +106,7 @@ struct SearchOptions {
     keyword: String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct CDKGroupListItem {
     id: u64,
     name: String,

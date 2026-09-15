@@ -46,6 +46,17 @@ export default {
   },
 
   /**
+   * 启用 / 禁用管理员（后端 state 为 'y'/'n'）
+   */
+  editState(data = {}) {
+    return request({
+      url: '/admin/admList/editState',
+      method: 'post',
+      data
+    })
+  },
+
+  /**
    * 设置头像
    */
   setAvatar(data = {}) {

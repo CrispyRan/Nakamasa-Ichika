@@ -162,5 +162,50 @@
 			</div>
 		</div>
 		<script type="module" src="/src/main.js"></script>
+	<!-- 临时诊断横幅：把页面运行时的 JS 错误直接显示在屏幕顶部，便于定位"点击无反应"。
+	     定位完成后连同下面整段 script 一起删除。 -->
+	<script>
+	(function () {
+		var box = document.createElement('div');
+		box.id = '__diag';
+		// 默认隐藏，只有真正捕获到运行时错误才显示，避免常开遮挡界面
+		box.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:2147483647;display:none;'
+			+ 'background:#b00020;color:#fff;font:12px/1.6 monospace;padding:8px 12px;'
+			+ 'max-height:42vh;overflow:auto;white-space:pre-wrap;word-break:break-all;'
+			+ 'border-bottom:2px solid #7a0015;';
+		var log = [];
+		var t0 = performance.now();
+		function push(tag, msg, show) {
+			log.push('[' + (performance.now() - t0).toFixed(0) + 'ms ' + tag + '] ' + msg);
+			box.textContent = '⚠ 运行时错误 — ' + log.join('\n');
+			box.scrollTop = box.scrollHeight;
+			if (show) box.style.display = 'block';
+		}
+		window.addEventListener('error', function (e) {
+			var loc = (e.filename || '').split('/').pop() + ':' + e.lineno + ':' + e.colno;
+			var stack = (e.error && e.error.stack) ? String(e.error.stack).slice(0, 700) : '(no stack)';
+			push('ERROR', (loc ? loc + ' | ' : '') + (e.message || 'unknown'), true);
+			push('STACK', stack);
+		}, true);
+		window.addEventListener('unhandledrejection', function (e) {
+			var r = e.reason;
+			var msg = (r && (r.message || r.msg)) || String(r).slice(0, 200);
+			var stack = (r && r.stack) ? String(r.stack).slice(0, 800) : '(no stack)';
+			push('PROMISE', msg, true);
+			push('STACK', stack);
+		});
+		// Vue 渲染期抛的错会被 errorCaptured 吃掉，不会冒到 window.unhandledrejection，
+		// 所以"按钮点击无反应"这类渲染中断必须从这里抓
+		window.addEventListener('vue:error', function (e) {
+			var d = e.detail || {};
+			var comp = d.component && (d.component.$options.name || d.component.$options.__file);
+			push('VUE_ERR', String(d.message || '').slice(0, 200), true);
+			push('STACK', (comp ? '[' + comp + '] ' : '') + String(d.stack || '').slice(0, 800));
+		});
+		document.addEventListener('DOMContentLoaded', function () {
+			document.body.appendChild(box);
+		});
+	})();
+	</script>
 	</body>
 </html>

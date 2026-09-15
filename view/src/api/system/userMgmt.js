@@ -183,6 +183,19 @@ export function faceReg(id, file) {
   })
 }
 
+/**
+ * 更新用户头像（列表行内快捷编辑）
+ * @param {number} id - 用户ID
+ * @param {string} avatars - 头像 URL；传空字符串可清除头像
+ */
+export function editAvatar(id, avatars) {
+  return request({
+    url: '/admin/user/editAvatar',
+    method: 'post',
+    data: { id, avatars }
+  })
+}
+
 // 默认导出所有方法
 export default {
   list,
@@ -190,6 +203,7 @@ export default {
   get,
   add,
   edit,
+  editAvatar,
   editExtend,
   award,
   del,

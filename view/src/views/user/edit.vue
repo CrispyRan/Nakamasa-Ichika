@@ -14,13 +14,12 @@
       <!-- 用户信息卡片 -->
       <div>
         <div class="bg-[--color-bg-1] p-5 rounded">
-          <div class="flex justify-between items-center">
-            <div class="grid gap-x-5 gap-y-5 grid-cols-[48px_1fr]">
-              <!-- 头像 -->
-              <a-avatar :size="48">
-                <img v-if="state.form.avatars" :src="state.form.avatars" alt="avatar" />
-                <icon-user v-else />
-              </a-avatar>
+          <div class="flex justify-between items-start">
+            <div class="grid gap-x-6 gap-y-5 grid-cols-[140px_1fr]">
+              <!-- 头像：可点击替换，圆形展示（130x130 圆形） -->
+              <div>
+                <sa-upload-image v-model="state.form.avatars" :rounded="true" />
+              </div>
               <!-- 用户信息 -->
               <div class="md:ml-3">
                 <div class="flex items-center">
@@ -344,7 +343,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Message } from '@arco-design/web-vue'
 import dayjs from 'dayjs'
@@ -407,6 +406,8 @@ const timestamp = ref({
 // UI状态
 const expanded = ref(false)
 const submitLoading = ref(false)
+// 标记用户数据是否已回填完成；为 true 之前 watcher 不保存头像
+const avatarLoaded = ref(false)
 
 // 解绑目标
 const unbindTarget = ref({ index: 0, udid: '' })
@@ -516,10 +517,34 @@ onMounted(() => {
     
     // 清空密码
     state.value.form.password = null
+
+    // 数据回填完成，之后头像变更才触发即时保存（避免回填时误写一次）
+    avatarLoaded.value = true
   }).catch(e => {
     Message.error('出错了-1：' + e)
   })
 })
+
+// 头像即时保存：上传完成后立刻写库，无需点「保存」按钮。
+// sa-upload-image 只回传相对路径（/upload/image/...），与列表行内上传走同一端点，
+// 存相对路径可避免 HTTPS 页面加载 HTTP 绝对地址时的混合内容拦截。
+watch(
+  () => state.value.form.avatars,
+  async (val) => {
+    if (!avatarLoaded.value) return
+    if (!val || typeof val !== 'string') return
+    const id = state.value.form.id
+    if (!id) return
+    try {
+      const res = await userApi.editAvatar(id, val)
+      if (res.code !== 200) {
+        Message.error(res.msg || '头像保存失败')
+      }
+    } catch (e) {
+      Message.error('头像保存失败：' + e)
+    }
+  }
+)
 
 // 解析扩展信息 - 与静态文件一致
 const parseExtend = (extendData) => {
