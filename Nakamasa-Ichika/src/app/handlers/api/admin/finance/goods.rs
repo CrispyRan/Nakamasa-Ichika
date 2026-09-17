@@ -5,6 +5,7 @@ use salvo::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::app::utils::response::ApiResponse;
+use crate::app::utils::validator::Validator;
 
 #[derive(Debug, Deserialize)]
 struct GetListRequest {
@@ -183,7 +184,7 @@ struct AddGoodsRequest {
     val: i64,
     money: f64,
     #[serde(default)]
-    blurb: Option<String>,
+    blurb: String,
 }
 
 #[handler]
@@ -231,10 +232,44 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
         }
     };
 
-    // 验证商品类型
-    if !["vip", "fen", "agent", "addsn"].contains(&add_req.goods_type.as_str()) {
-        res.render(Json(ApiResponse::<()>::error("商品类型错误", 201)));
+    if add_req.money < 0.1 || add_req.money > 999999.0 {
+        res.render(Json(ApiResponse::<()>::error("商品金额有误", 201)));
         return;
+    }
+
+    let mut validator = Validator::new();
+    validator
+        .string("name", &add_req.name, 2, 64)
+        .sameone("type", &add_req.goods_type, vec!["vip", "fen", "agent"])
+        .int("val", add_req.val, 1, 11)
+        .string("blurb", &add_req.blurb, 1, 255);
+
+    if let Err(msg) = validator.validate() {
+        res.render(Json(ApiResponse::<()>::error(msg, 201)));
+        return;
+    }
+
+    if add_req.goods_type == "agent" {
+        let ag_check = sqlx::query_as::<_, (i64,)>(
+            "SELECT id FROM u_agent_group WHERE id = ? AND appid = ?",
+        )
+        .bind(add_req.val)
+        .bind(appid)
+        .fetch_optional(db)
+        .await;
+
+        match ag_check {
+            Ok(None) => {
+                res.render(Json(ApiResponse::<()>::error("代理组不存在", 201)));
+                return;
+            }
+            Err(e) => {
+                tracing::error!("代理组校验失败: {}", e);
+                res.render(Json(ApiResponse::<()>::error("添加失败", 201)));
+                return;
+            }
+            Ok(Some(_)) => {}
+        }
     }
 
     let result = sqlx::query(
@@ -244,7 +279,7 @@ pub async fn add(req: &mut Request, depot: &mut Depot, res: &mut Response) {
     .bind(&add_req.goods_type)
     .bind(add_req.val)
     .bind(add_req.money.round() as i64)
-    .bind(add_req.blurb.unwrap_or_default())
+    .bind(add_req.blurb.clone())
     .bind(appid)
     .execute(db)
     .await;

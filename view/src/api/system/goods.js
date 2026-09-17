@@ -23,13 +23,13 @@ export default {
       page: params.page || 1,
       size: params.size || params.page_size || 20
     }
-    
+
     if (params.keyword || params.name) {
       backendParams.so = {
         keyword: params.keyword || params.name
       }
     }
-    
+
     return request({
       url: '/admin/goods/list',
       method: 'post',
@@ -53,9 +53,9 @@ export default {
       data: {
         name: data.name,
         type: data.type || 'vip',
-        val: data.val || data.days || 0,
-        money: data.money || data.price || 0,
-        blurb: data.blurb || data.description || ''
+        val: data.val ?? 0,
+        money: data.money ?? 0,
+        blurb: data.blurb ?? ''
       }
     })
   },
@@ -79,10 +79,10 @@ export default {
         id: data.id,
         name: data.name,
         type: data.type,
-        val: data.val,
-        money: data.money,
-        blurb: data.blurb || '',
-        state: data.state
+        val: data.val ?? 0,
+        money: data.money ?? 0,
+        blurb: data.blurb ?? '',
+        state: data.state ?? 'y'
       }
     })
   },
@@ -99,7 +99,7 @@ export default {
       method: 'post',
       data: {
         id: data.id,
-        state: data.state || (data.status === 1 ? 'y' : 'n')
+        state: data.state
       }
     })
   },
